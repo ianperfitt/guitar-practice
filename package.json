@@ -1,0 +1,11 @@
+{
+  "name": "guitar-practice",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "mvn -f backend/pom.xml spring-boot:run",
+    "build": "npm --prefix frontend run build",
+    "test": "mvn -f backend/pom.xml test && npm --prefix frontend run typecheck"
+  }
+}

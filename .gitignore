@@ -1,0 +1,9 @@
+node_modules/
+.next/
+out/
+target/
+.env*.local
+*.log
+.DS_Store
+.playwright/
+*.tsbuildinfo

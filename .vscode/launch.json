@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Guitar Practice: Backend",
+      "request": "launch",
+      "mainClass": "com.guitarpractice.GuitarPracticeApplication",
+      "projectName": "guitar-practice",
+      "cwd": "${workspaceFolder}/backend",
+      "console": "integratedTerminal"
+    }
+  ]
+}
