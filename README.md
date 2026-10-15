@@ -92,6 +92,15 @@ npm run build
 
 Backend tests check catalog fidelity, only the eight allowed ordered pairs (including scales), shuffle completeness, inclusive fret boundaries, tempo settings, and HTTP validation. TypeScript is checked separately and by the Next.js production build.
 
+Frontend source uses Prettier with two-space indentation and a 100-character print width. Format it or check formatting with:
+
+```bash
+npm --prefix frontend run format
+npm --prefix frontend run format:check
+```
+
+VS Code recommends the Prettier extension and formats TypeScript, JSX, CSS, and JSON on save when it is installed.
+
 Browser tests use the real running backend and frontend. With both running and Google Chrome installed:
 
 ```bash

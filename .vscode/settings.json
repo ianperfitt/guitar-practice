@@ -1,5 +1,17 @@
 {
   "java.server.launchMode": "Standard",
   "java.import.maven.enabled": true,
-  "java.configuration.updateBuildConfiguration": "automatic"
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "files.associations": {
+    "**/app/globals.css": "tailwindcss"
+  },
+  "tailwindCSS.classFunctions": ["cn"],
+  "[typescript][typescriptreact][css][json][jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[tailwindcss]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  }
 }
