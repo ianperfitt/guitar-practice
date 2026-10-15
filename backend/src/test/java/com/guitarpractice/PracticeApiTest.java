@@ -7,6 +7,7 @@ import java.net.http.HttpResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import tools.jackson.databind.json.JsonMapper;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -23,7 +24,15 @@ class PracticeApiTest {
     @Test void emptyRequestDefaultsToOneHundredBpm() throws Exception {
         var response = post("{}");
         assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.body()).contains("\"bpm\":100", "Up & Down Scale", "F#7");
+        var deck = JsonMapper.builder().build().readTree(response.body());
+        assertThat(deck.size()).isEqualTo(16);
+        for (var card : deck) {
+            assertThat(card.get("bpm").asInt()).isEqualTo(100);
+            assertThat(card.get("chords").size()).isEqualTo(2);
+            assertThat(card.get("chords").get(0).get("name").asText())
+                .isNotEqualTo(card.get("chords").get(1).get("name").asText());
+            assertThat(card.get("exercise").get("id").asText()).isNotBlank();
+        }
     }
 
     @Test void rejectsOutOfRangeInputAndMalformedRequests() throws Exception {

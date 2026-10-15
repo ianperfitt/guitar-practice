@@ -40,18 +40,29 @@ VS Code's [Java project documentation](https://code.visualstudio.com/docs/java/j
 
 ## Practice
 
-- All 16 named exercises from the supplied table are included. Shuffle randomizes the entire deck without dropping or duplicating exercises.
+- Every card combines **two distinct chords + one exercise from the exercise library**. All 16 named exercises are included. Shuffle selects only from the eight allowed ordered chord pairs and refreshes the exercise order without dropping or duplicating exercises.
 - Tempo defaults to **100 BPM** and can be edited from 20–300 BPM. Tempo changes apply to all cards, including the audible four-beat metronome.
 - Each card shows a five-fret **inclusive** range, always within frets 1–12. Valid positions are 1–5 through 8–12. Choose random positions per card or fix one position for the whole deck.
-- Browse with Previous/Next or the keyboard arrow keys. Use **Mark practiced & next** to track the 16 exercises in a session. Shuffling starts a fresh session.
+- Browse freely with Previous/Next or the keyboard arrow keys. Navigation loops through the deck; shuffle anytime for fresh combinations.
 - The library supports search and direct selection of any exercise.
-- Tempo and position preferences are saved in browser local storage. Session completion resets on reload. No account or database is needed.
+- Tempo and position preferences are saved in browser local storage. No account or database is needed.
 
 ### Interpreting the original table
 
-The standalone rows of `1`s are retained as annotations on the preceding exercise, rather than separate cards. No musical meaning is assigned to those numbers. Target Note Bends retains the empty Bdim annotation (shown as a dash). HWHT Enclosure retains “Whole–Half or Half–Whole” on Bdim. Bold chord names preserve the emphasis from the table. Bflat 7 is displayed as B♭7.
+The standalone rows of `1`s are retained as annotations on the preceding exercise, rather than separate cards. No musical meaning is assigned to those numbers. Target Note Bends retains the empty B° annotation (shown as a dash). HWHT Enclosure retains “Whole–Half or Half–Whole” on B°. Bold chord names preserve the emphasis from the table. Chord labels use F7alt, B♭7, B°, and C7alt.
 
-Up & Down Scale and Blues Scale have no supplied chord progression, so their cards show scale guidance instead. Descriptive practice prompts are supplementary copy; exercise names and chord data come from the supplied table.
+Up & Down Scale and Blues Scale have no supplied chord progression in the library. Every practice card, including scales, uses exactly one of these ordered pairs:
+
+- F7 → B♭7
+- F7alt → B♭7
+- B♭7 → F7
+- B° → F7
+- F7 → D7
+- D7 → C7
+- C7 → F7
+- C7alt → F7
+
+Pair order is preserved. The selected exercise supplies any chord-specific annotations. Descriptive practice prompts are supplementary copy.
 
 ## API
 
@@ -60,7 +71,7 @@ Next.js forwards `/api/*` to Spring Boot, so the browser uses a single origin.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/api/exercises` | Returns the 16 canonical exercises and chord annotations. |
-| POST | `/api/decks` | Returns cards with tempo, valid fret ranges, and optional shuffling. |
+| POST | `/api/decks` | Returns cards containing one library exercise, two distinct chords, tempo, and valid fret ranges. |
 
 Example request:
 
@@ -70,7 +81,7 @@ curl -X POST http://localhost:8080/api/decks \
   -d '{"bpm":100,"fretStart":null,"shuffle":true}'
 ```
 
-An empty `{}` defaults to 100 BPM, random positions, and shuffling. `fretStart` is null for random positions or an integer from 1–8; the end fret is always `fretStart + 4`. `shuffle: false` returns the original order. Invalid input returns HTTP 400. Decks are generated per request and never shared between users.
+An empty `{}` defaults to 100 BPM, random positions, and shuffling. `fretStart` is null for random positions or an integer from 1–8; the end fret is always `fretStart + 4`. `shuffle: false` returns the original exercise order and cycles through the eight ordered pairs above. Each card has an `exercise` containing the original library data and a separate `chords` array containing exactly two selected chords. Shuffling refreshes that pair for each exercise. Invalid input returns HTTP 400. Decks are generated per request and never shared between users.
 
 ## Checks
 
@@ -79,7 +90,7 @@ npm test
 npm run build
 ```
 
-Backend tests check catalog fidelity, shuffle completeness, inclusive fret boundaries, tempo settings, and HTTP validation. TypeScript is checked separately and by the Next.js production build.
+Backend tests check catalog fidelity, only the eight allowed ordered pairs (including scales), shuffle completeness, inclusive fret boundaries, tempo settings, and HTTP validation. TypeScript is checked separately and by the Next.js production build.
 
 Browser tests use the real running backend and frontend. With both running and Google Chrome installed:
 

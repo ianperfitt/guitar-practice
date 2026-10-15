@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, AudioLines, BookOpen, Check, ChevronDown, CircleHelp, Layers3, ListMusic, LoaderCircle, Minus, Music2, Pause, Play, Plus, RotateCcw, Search, Shuffle, SlidersHorizontal, Sparkles, Volume2, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, AudioLines, BookOpen, ChevronDown, CircleHelp, Layers3, ListMusic, LoaderCircle, Minus, Music2, Pause, Play, Plus, RotateCcw, Search, Shuffle, SlidersHorizontal, Sparkles, Volume2, X } from 'lucide-react';
 
 type Chord = { name: string; annotation: string; note: string; emphasized: boolean };
 type Exercise = { id: string; title: string; category: string; guidance: string; chords: Chord[] };
-type Card = { exercise: Exercise; bpm: number; fretStart: number; fretEnd: number };
+type Card = { exercise: Exercise; chords: Chord[]; bpm: number; fretStart: number; fretEnd: number };
 type Settings = { bpm: number; fretMode: string };
 const STORAGE_KEY = 'guitar-practice-settings-v1';
 const DEFAULT_SETTINGS: Settings = { bpm: 100, fretMode: 'random' };
@@ -107,7 +107,6 @@ function useMetronome(bpm: number) {
 export default function Home() {
   const [cards, setCards] = useState<Card[]>([]);
   const [index, setIndex] = useState(0);
-  const [completed, setCompleted] = useState<string[]>([]);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [tempoText, setTempoText] = useState('100');
   const [view, setView] = useState<'practice' | 'library'>('practice');
@@ -119,7 +118,6 @@ export default function Home() {
   const dialog = useRef<HTMLDialogElement>(null);
   const metronome = useMetronome(settings.bpm);
   const card = cards[index];
-  const allDone = cards.length > 0 && completed.length === cards.length;
 
   useEffect(() => {
     const saved = readSettings();
@@ -151,7 +149,7 @@ export default function Home() {
     setLoading(true); setError('');
     try {
       const deck = await requestDeck(settings, true);
-      setCards(deck); setIndex(0); setCompleted([]); setView('practice');
+      setCards(deck); setIndex(0); setView('practice');
       setNotice('Fresh deck. Fresh perspective.');
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not shuffle the deck.'); }
     finally { setLoading(false); }
@@ -188,17 +186,6 @@ export default function Home() {
     }));
   }
 
-  function finishCard() {
-    if (!card) return;
-    const done = new Set([...completed, card.exercise.id]);
-    setCompleted([...done]);
-    for (let offset = 1; offset <= cards.length; offset++) {
-      const next = (index + offset) % cards.length;
-      if (!done.has(cards[next].exercise.id)) { setIndex(next); return; }
-    }
-    setNotice('All 16 exercises complete. Nice work.');
-  }
-
   const filtered = cards.filter(item => `${item.exercise.title} ${item.exercise.category}`.toLowerCase().includes(query.toLowerCase()));
 
   return <div className="app-shell">
@@ -216,7 +203,7 @@ export default function Home() {
     <main>
       <header className="topbar"><div className="breadcrumb">Your workspace <span>/</span> <strong>{view === 'practice' ? 'Practice deck' : 'Exercise library'}</strong></div><button className="help-button" onClick={() => dialog.current?.showModal()}><CircleHelp size={16} /> How it works</button></header>
       <div className="main-content">
-        <section className="page-heading"><div><div className="eyebrow"><span /> FIND YOUR FLOW</div><h1>{view === 'practice' ? <>A little practice.<br className="mobile-break" /> A lot of progress.</> : 'Your practice library.'}</h1><p>{view === 'practice' ? 'Shuffle your routine. Explore the fretboard. Make it musical.' : 'Sixteen ways to find something new in those six strings.'}</p></div><div className="heading-badge"><Music2 size={17} /><span>Built for your daily rhythm</span></div></section>
+        <section className="page-heading"><div><div className="eyebrow"><span /> FIND YOUR FLOW</div><h1>{view === 'practice' ? <>A little practice.<br className="mobile-break" /> A lot of progress.</> : 'Your practice library.'}</h1><p>{view === 'practice' ? 'Two chords. One exercise. Make it musical.' : 'Sixteen ways to find something new in those six strings.'}</p></div><div className="heading-badge"><Music2 size={17} /><span>Built for your daily rhythm</span></div></section>
 
         {error && <div className="error-message" role="alert"><span>{error}</span><button onClick={shuffleDeck} disabled={loading}><RotateCcw size={15} /> Try again</button></div>}
         <div className="sr-only" role="status">{notice}</div>
@@ -224,35 +211,39 @@ export default function Home() {
         {view === 'practice' ? <>
           <div className="practice-grid">
             <section className="deck-column" aria-label="Practice card">
-              <div className="section-heading"><h2><Layers3 size={17} /> Your practice deck</h2><span>{cards.length || 16} exercises <span className="tiny-dot">·</span> Endless possibilities</span></div>
+              <div className="section-heading"><h2><Layers3 size={17} /> Your practice deck</h2><span>2 chords <span className="tiny-dot">+</span> 1 library exercise</span></div>
               <div className="card-stack">
                 <div className="practice-card">
-                  {loading && !card ? <div className="loading-state"><LoaderCircle className="spin" size={26} /><p>Tuning up your practice deck…</p></div> : card ? allDone ? <div className="completed-state"><div className="completion-icon"><Check size={30} /></div><div className="eyebrow">SESSION COMPLETE</div><h2>You showed up.<br />That’s how it happens.</h2><p>All 16 exercises, one good session.<br />Take a breath, or see what the next shuffle brings.</p><button className="primary-button" onClick={shuffleDeck} disabled={loading}><Shuffle size={17} /> Start a fresh deck</button><button className="text-button" onClick={() => setCompleted([])}>Review this deck</button></div> : <>
+                  {loading && !card ? <div className="loading-state"><LoaderCircle className="spin" size={26} /><p>Tuning up your practice deck…</p></div> : card ? <>
                     <div className="card-topline"><span className="category-pill"><span />{card.exercise.category}</span><span className="card-number">CARD <b>{String(index + 1).padStart(2, '0')}</b><span>/</span>{cards.length}</span></div>
-                    <div className="exercise-heading" key={card.exercise.id}><div className="exercise-kicker">A LITTLE FOCUS GOES A LONG WAY</div><h2>{card.exercise.title}</h2><p>{card.exercise.guidance}</p></div>
-                    {card.exercise.chords.length ? <div className="progression"><div className="mini-heading"><span>CHORD PROGRESSION</span><span>Focus · {card.exercise.chords[activeChord]?.name}</span></div><div className="chord-grid">{card.exercise.chords.map((chord, chordIndex) => <button key={chord.name} title={chord.note || `Focus on ${chord.name}`} onClick={() => setActiveChord(chordIndex)} aria-pressed={activeChord === chordIndex} className={`chord ${activeChord === chordIndex ? 'selected' : ''}`}><span className={chord.emphasized ? 'emphasized' : ''}>{chord.name}</span><small title="Original exercise annotation">{chord.annotation || '—'}</small></button>)}</div>{card.exercise.chords[activeChord]?.note && <p className="chord-note">{card.exercise.chords[activeChord].note}</p>}</div> : <div className="scale-path"><span className="scale-icon"><AudioLines size={23} /></span><div><strong>Up the scale. Back to the root.</strong><span>Stay in position and let every note ring clear.</span></div><ArrowUp size={18} /><ArrowDown size={18} /></div>}
+                    <div className="exercise-heading" key={card.exercise.id}><div className="exercise-kicker">YOUR EXERCISE FROM THE LIBRARY</div><h2>{card.exercise.title}</h2><p>{card.exercise.guidance}</p></div>
+                    <div className="progression">
+                      <div className="mini-heading"><span>YOUR TWO CHORDS</span><span>Focus · {card.chords[activeChord]?.name}</span></div>
+                      <div className="chord-grid chord-pair">{card.chords.map((chord, chordIndex) => <button key={chord.name} title={chord.note || `Focus on ${chord.name}`} onClick={() => setActiveChord(chordIndex)} aria-pressed={activeChord === chordIndex} className={`chord ${activeChord === chordIndex ? 'selected' : ''}`}><span className={chord.emphasized ? 'emphasized' : ''}>{chord.name}</span><small title="Original exercise annotation">{chord.annotation || '—'}</small></button>)}</div>
+                      <p className="pair-guidance">{card.exercise.chords.length ? 'Work through the exercise, moving between these two chords.' : 'Explore the scale over each chord, then connect the two.'}</p>
+                      {card.chords[activeChord]?.note && <p className="chord-note">{card.chords[activeChord].note}</p>}
+                    </div>
                     <div className="card-position"><div className="mini-heading"><span>YOUR PATCH OF THE FRETBOARD</span><span>5 frets. Plenty to explore.</span></div><Fretboard start={card.fretStart} end={card.fretEnd} /></div>
                     <div className="card-bottom"><span><AudioLines size={16} /><strong>{card.bpm}</strong> BPM</span><span className="bottom-separator" /><span><SlidersHorizontal size={15} /> Frets <strong>{card.fretStart}–{card.fretEnd}</strong></span><span className="position-caption">Stay in your five-fret window</span></div>
                   </> : <div className="loading-state"><Music2 size={28} /><p>Your next practice is one retry away.</p></div>}
                 </div>
               </div>
-              <div className="deck-actions"><button className="shuffle-button" onClick={shuffleDeck} disabled={loading}><Shuffle size={17} className={loading ? 'spin' : ''} />{loading ? 'Shuffling…' : 'Shuffle deck'}</button><div className="navigation-buttons"><button className="icon-button" aria-label="Previous card" onClick={() => navigate(-1)} disabled={loading || !card || allDone}><ArrowLeft size={18} /></button><button className="next-button" onClick={() => navigate(1)} disabled={loading || !card || allDone}>Next card <ArrowRight size={17} /></button></div></div>
+              <div className="deck-actions"><button className="shuffle-button" onClick={shuffleDeck} disabled={loading}><Shuffle size={17} className={loading ? 'spin' : ''} />{loading ? 'Shuffling…' : 'Shuffle deck'}</button><div className="navigation-buttons"><button className="icon-button" aria-label="Previous card" onClick={() => navigate(-1)} disabled={loading || !card}><ArrowLeft size={18} /></button><button className="next-button" onClick={() => navigate(1)} disabled={loading || !card}>Next card <ArrowRight size={17} /></button></div></div>
               <div className="keyboard-hint"><span><kbd>←</kbd><kbd>→</kbd> to move through your deck</span><span>Keep it fresh. Keep it fun.</span></div>
             </section>
 
-            <aside className="session-column" aria-label="Practice settings">
+            <aside className="settings-column" aria-label="Practice settings">
               <div className="section-heading"><h2><SlidersHorizontal size={16} /> Make it your own</h2></div>
               <section className="settings-panel"><div className="control-heading"><label htmlFor="bpm">TEMPO</label><span>BPM</span></div><div className="tempo-control"><button className="round-button" aria-label="Decrease BPM" onClick={() => changeTempo(settings.bpm - 5)} disabled={loading || settings.bpm <= 20}><Minus size={17} /></button><input id="bpm" disabled={loading} type="number" inputMode="numeric" min="20" max="300" value={tempoText} onChange={event => setTempoText(event.target.value)} onBlur={commitTempo} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }} /><button className="round-button" aria-label="Increase BPM" onClick={() => changeTempo(settings.bpm + 5)} disabled={loading || settings.bpm >= 300}><Plus size={17} /></button></div><div className="tempo-caption">Your pace. Your progress.</div><div className="metronome"><button onClick={metronome.toggle} aria-pressed={metronome.running} className={metronome.running ? 'playing' : ''}>{metronome.running ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />} Metronome</button><div className="beat-dots" aria-label={metronome.running ? 'Metronome running' : 'Metronome stopped'}>{[0,1,2,3].map(beat => <i key={beat} className={metronome.running && metronome.beat === beat ? 'lit' : ''} />)}</div><Volume2 size={14} /></div>{metronome.audioError && <p className="audio-error" role="alert">{metronome.audioError}</p>}<div className="panel-divider" /><div className="control-heading"><label htmlFor="fret-range">FRET RANGE</label><span className="five-frets">5 frets</span></div><div className="select-wrapper"><Shuffle size={15} /><select id="fret-range" disabled={loading} value={settings.fretMode} onChange={event => changeRange(event.target.value)}><option value="random">Random position</option>{Array.from({ length: 8 }, (_, i) => <option key={i + 1} value={i + 1}>Frets {i + 1}–{i + 5}</option>)}</select><ChevronDown size={14} /></div><p className="range-caption">{settings.fretMode === 'random' ? 'A fresh five-fret window on every card.' : 'One position. A whole world of possibilities.'}</p><div className="settings-footnote"><span /> Settings apply to your whole deck.</div></section>
-              <section className="session-panel"><div className="session-title"><h3>This session</h3><span>{completed.length}<span> / {cards.length || 16}</span></span></div><div className="progress-segments" aria-label={`${completed.length} of ${cards.length || 16} exercises completed`}>{Array.from({ length: cards.length || 16 }, (_, i) => <span key={i} className={cards[i] && completed.includes(cards[i].exercise.id) ? 'done' : ''} />)}</div><p>{allDone ? 'A little better than when you started.' : 'Good practice is about showing up.'}</p><button className="complete-button" onClick={finishCard} disabled={loading || !card || allDone || completed.includes(card?.exercise.id)}><Check size={16} />{allDone ? 'Session complete' : card && completed.includes(card.exercise.id) ? 'Card completed' : 'Mark practiced & next'}</button></section>
               <div className="practice-tip"><Sparkles size={17} /><div><strong>Make space for the music.</strong><p>Start slow. Stay curious. A clean phrase beats a fast one.</p></div></div>
             </aside>
           </div>
           <section className="up-next"><div className="up-next-icon"><ListMusic size={21} /></div><div><div className="eyebrow">WAITING IN YOUR DECK</div><p>{cards.length ? cards[(index + 1) % cards.length].exercise.title : 'Sixteen exercises. A new perspective.'}</p></div><button onClick={() => setView('library')}>Explore all exercises <ArrowRight size={16} /></button></section>
-        </> : <section className="library"><div className="library-toolbar"><h2>All exercises <span>16</span></h2><label className="search-input"><Search size={17} /><input placeholder="Find an exercise…" aria-label="Search exercises" value={query} onChange={event => setQuery(event.target.value)} /></label></div>{loading && !cards.length ? <div className="loading-state"><LoaderCircle className="spin" /> Loading your library…</div> : <div className="library-grid">{filtered.map(item => <button className="library-card" key={item.exercise.id} onClick={() => { setIndex(cards.findIndex(entry => entry.exercise.id === item.exercise.id)); setView('practice'); }}><div className="library-card-top"><span className="category-pill">{item.exercise.category}</span>{completed.includes(item.exercise.id) ? <Check size={17} /> : <ArrowRight size={17} />}</div><h3>{item.exercise.title}</h3><p>{item.exercise.guidance}</p><div className="library-card-bottom"><span>{item.bpm} BPM</span><span>Frets {item.fretStart}–{item.fretEnd}</span></div></button>)}</div>}{!loading && !filtered.length && <div className="empty-library"><Search size={25} /><h3>{cards.length ? 'No exercises found' : 'Your library couldn’t load'}</h3><p>{cards.length ? 'Try another name or category.' : 'Use Try again above to reconnect to your practice deck.'}</p>{cards.length > 0 && <button className="text-button" onClick={() => setQuery('')}>Clear search</button>}</div>}</section>}
+        </> : <section className="library"><div className="library-toolbar"><h2>All exercises <span>16</span></h2><label className="search-input"><Search size={17} /><input placeholder="Find an exercise…" aria-label="Search exercises" value={query} onChange={event => setQuery(event.target.value)} /></label></div>{loading && !cards.length ? <div className="loading-state"><LoaderCircle className="spin" /> Loading your library…</div> : <div className="library-grid">{filtered.map(item => <button className="library-card" key={item.exercise.id} onClick={() => { setIndex(cards.findIndex(entry => entry.exercise.id === item.exercise.id)); setView('practice'); }}><div className="library-card-top"><span className="category-pill">{item.exercise.category}</span><ArrowRight size={17} /></div><h3>{item.exercise.title}</h3><p>{item.exercise.guidance}</p><div className="library-card-bottom"><span>{item.bpm} BPM</span><span>Frets {item.fretStart}–{item.fretEnd}</span></div></button>)}</div>}{!loading && !filtered.length && <div className="empty-library"><Search size={25} /><h3>{cards.length ? 'No exercises found' : 'Your library couldn’t load'}</h3><p>{cards.length ? 'Try another name or category.' : 'Use Try again above to reconnect to your practice deck.'}</p>{cards.length > 0 && <button className="text-button" onClick={() => setQuery('')}>Clear search</button>}</div>}</section>}
         <footer className="page-footer"><span>Less overthinking. More playing.</span><span>GUITAR PRACTICE <span className="footer-dot">✳</span></span></footer>
       </div>
     </main>
 
-    <dialog ref={dialog} className="help-dialog" onClick={event => { if (event.target === event.currentTarget) dialog.current?.close(); }}><div className="dialog-inner"><button className="dialog-close icon-button" onClick={() => dialog.current?.close()} aria-label="Close help"><X size={19} /></button><div className="eyebrow">YOUR DAILY PRACTICE, SIMPLIFIED</div><h2>Pick up. Shuffle. Play.</h2><p>Each card is one of your 16 exercises. Shuffle to change the order and explore a new position on the guitar.</p><ol><li><strong>Set your pace.</strong> Tempo starts at 100 BPM. Type a value from 20–300 or use the ± buttons. The optional metronome gives you an audible four-beat pulse.</li><li><strong>Find your position.</strong> Every range contains exactly five frets, within frets 1–12. Choose random or lock in a position for the whole deck.</li><li><strong>Follow the card.</strong> Click a chord to focus on it. The small numbers preserve the annotations from your original table; a dash means no annotation was supplied. The two opening scale exercises have no chord progression.</li><li><strong>Keep moving.</strong> Use the arrows to browse, or mark a card practiced to track your session. A new shuffle resets your progress. Tempo and range preferences stay saved in this browser.</li></ol><button className="primary-button" onClick={() => dialog.current?.close()}>Let’s play <ArrowRight size={16} /></button></div></dialog>
+    <dialog ref={dialog} className="help-dialog" onClick={event => { if (event.target === event.currentTarget) dialog.current?.close(); }}><div className="dialog-inner"><button className="dialog-close icon-button" onClick={() => dialog.current?.close()} aria-label="Close help"><X size={19} /></button><div className="eyebrow">YOUR DAILY PRACTICE, SIMPLIFIED</div><h2>Pick up. Shuffle. Play.</h2><p>Each card combines two distinct chords with one exercise from your library. Shuffle to refresh the chord pairings, exercise order, and fret positions.</p><ol><li><strong>Set your pace.</strong> Tempo starts at 100 BPM. Type a value from 20–300 or use the ± buttons. The optional metronome gives you an audible four-beat pulse.</li><li><strong>Find your position.</strong> Every range contains exactly five frets, within frets 1–12. Choose random or lock in a position for the whole deck.</li><li><strong>Follow the card.</strong> Apply the library exercise to the two chords shown. Click either chord to focus on it. Scale exercises also receive a chord pair. The small numbers preserve the original annotations; a dash means none was supplied.</li><li><strong>Keep moving.</strong> Use the arrows to browse at your own pace, or shuffle for a fresh combination. Tempo and range preferences stay saved in this browser.</li></ol><button className="primary-button" onClick={() => dialog.current?.close()}>Let’s play <ArrowRight size={16} /></button></div></dialog>
   </div>;
 }
