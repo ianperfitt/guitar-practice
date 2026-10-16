@@ -9,9 +9,12 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class PracticeService {
-    public record Chord(String name, String annotation, String note, boolean emphasized) {}
+    public record TargetNote(String name, String degree) {}
+    public record Chord(String name, String annotation, String note, boolean emphasized,
+                        List<TargetNote> targetNoteOptions) {}
     public record Exercise(String id, String title, String category, String guidance, List<Chord> chords) {}
-    public record Card(Exercise exercise, List<Chord> chords, int bpm, int fretStart, int fretEnd) {}
+    public record Card(Exercise exercise, List<Chord> chords, List<String> targetNotes,
+                       int bpm, int fretStart, int fretEnd, int stringStart, int stringEnd) {}
 
     private static final List<List<String>> CHORD_PAIRS = List.of(
         List.of("F7", "B♭7"),
@@ -52,22 +55,41 @@ public class PracticeService {
 
     private static List<Chord> chords(boolean hwht, boolean bends) {
         return List.of(
-            new Chord("F7", "1", "", hwht),
-            new Chord("F7alt", "1", "", true),
-            new Chord("B♭7", "1", "", hwht),
-            new Chord("B°", bends ? "" : "1", hwht ? "Whole–Half or Half–Whole" : "", hwht),
-            new Chord("D7", "1", "", hwht),
-            new Chord("C7", "1", "", false),
-            new Chord("C7alt", "1", "", false)
+            chord("F7", "1", "", hwht),
+            chord("F7alt", "1", "", true),
+            chord("B♭7", "1", "", hwht),
+            chord("B°", bends ? "" : "1", hwht ? "Whole–Half or Half–Whole" : "", hwht),
+            chord("D7", "1", "", hwht),
+            chord("C7", "1", "", false),
+            chord("C7alt", "1", "", false)
         );
     }
 
+    private static Chord chord(String name, String annotation, String note, boolean emphasized) {
+        var options = switch (name) {
+            case "F7" -> List.of(target("F", "1"), target("A", "3"), target("C", "5"), target("E♭", "♭7"));
+            case "F7alt" -> List.of(target("F", "1"), target("A", "3"), target("C♭", "♭5"), target("C♯", "♯5"), target("E♭", "♭7"));
+            case "B♭7" -> List.of(target("B♭", "1"), target("D", "3"), target("F", "5"), target("A♭", "♭7"));
+            case "B°" -> List.of(target("B", "1"), target("D", "♭3"), target("F", "♭5"));
+            case "D7" -> List.of(target("D", "1"), target("F♯", "3"), target("A", "5"), target("C", "♭7"));
+            case "C7" -> List.of(target("C", "1"), target("E", "3"), target("G", "5"), target("B♭", "♭7"));
+            case "C7alt" -> List.of(target("C", "1"), target("E", "3"), target("G♭", "♭5"), target("G♯", "♯5"), target("B♭", "♭7"));
+            default -> throw new IllegalArgumentException("Unknown chord: " + name);
+        };
+        return new Chord(name, annotation, note, emphasized, options);
+    }
+
+    private static TargetNote target(String name, String degree) { return new TargetNote(name, degree); }
+
     public List<Exercise> exercises() { return EXERCISES; }
 
-    public List<Card> deck(int bpm, Integer fretStart, boolean shuffle) {
+    public List<Card> deck(int bpm, Integer fretStart, Integer stringStart, boolean shuffle) {
         if (bpm < 20 || bpm > 300) throw new IllegalArgumentException("BPM must be between 20 and 300.");
         if (fretStart != null && (fretStart < 1 || fretStart > 8)) {
             throw new IllegalArgumentException("Start fret must be between 1 and 8.");
+        }
+        if (stringStart != null && (stringStart < 1 || stringStart > 4)) {
+            throw new IllegalArgumentException("Start string must be between 1 and 4.");
         }
         List<Exercise> order = new ArrayList<>(EXERCISES);
         if (shuffle) Collections.shuffle(order);
@@ -79,8 +101,13 @@ public class PracticeService {
                                              : index % CHORD_PAIRS.size());
             var chords = pair.stream().map(name -> pool.stream()
                 .filter(chord -> chord.name().equals(name)).findFirst().orElseThrow()).toList();
+            var targets = chords.stream().map(chord -> {
+                var options = chord.targetNoteOptions();
+                return options.get(shuffle ? ThreadLocalRandom.current().nextInt(options.size()) : 0).name();
+            }).toList();
             int start = fretStart == null ? ThreadLocalRandom.current().nextInt(1, 9) : fretStart;
-            return new Card(exercise, chords, bpm, start, start + 4);
+            int firstString = stringStart == null ? ThreadLocalRandom.current().nextInt(1, 5) : stringStart;
+            return new Card(exercise, chords, targets, bpm, start, start + 4, firstString, firstString + 2);
         }).toList();
     }
 }

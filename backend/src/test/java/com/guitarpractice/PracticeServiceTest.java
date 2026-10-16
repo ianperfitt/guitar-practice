@@ -1,6 +1,8 @@
 package com.guitarpractice;
 
 import java.util.List;
+import java.util.Map;
+import java.util.HashSet;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.*;
 
@@ -25,8 +27,9 @@ class PracticeServiceTest {
     }
 
     @Test void randomDecksUseOnlyAllowedOrderedPairsWithEveryLibraryExercise() {
+        var sampledF7Targets = new HashSet<String>();
         for (int i = 0; i < 100; i++) {
-            var deck = service.deck(100, null, true);
+            var deck = service.deck(100, null, 1, true);
             assertThat(deck).hasSize(16);
             assertThat(deck.stream().map(PracticeService.Card::exercise)).containsExactlyInAnyOrderElementsOf(service.exercises());
             assertThat(deck).allSatisfy(card -> {
@@ -35,34 +38,95 @@ class PracticeServiceTest {
                 assertThat(ALLOWED_PAIRS).contains(pair);
                 var pool = card.exercise().chords().isEmpty() ? service.exercises().get(2).chords() : card.exercise().chords();
                 assertThat(card.chords()).isSubsetOf(pool);
+                assertThat(card.targetNotes()).hasSize(2);
+                for (int chordIndex = 0; chordIndex < card.chords().size(); chordIndex++) {
+                    var chord = card.chords().get(chordIndex);
+                    var target = card.targetNotes().get(chordIndex);
+                    assertThat(chord.targetNoteOptions().stream().map(PracticeService.TargetNote::name))
+                        .contains(target);
+                    if (chord.name().equals("F7")) sampledF7Targets.add(target);
+                }
                 assertThat(card.bpm()).isEqualTo(100);
                 assertThat(card.fretStart()).isBetween(1, 8);
                 assertThat(card.fretEnd()).isBetween(5, 12);
                 assertThat(card.fretEnd() - card.fretStart() + 1).isEqualTo(5);
             });
         }
+        assertThat(sampledF7Targets).containsExactlyInAnyOrder("F", "A", "C", "E♭");
+    }
+
+    @Test void targetNoteOptionsMatchChordTonesIncludingAlteredAndDiminishedFifths() {
+        var expected = Map.of(
+            "F7", List.of("F", "A", "C", "E♭"),
+            "F7alt", List.of("F", "A", "C♭", "C♯", "E♭"),
+            "B♭7", List.of("B♭", "D", "F", "A♭"),
+            "B°", List.of("B", "D", "F"),
+            "D7", List.of("D", "F♯", "A", "C"),
+            "C7", List.of("C", "E", "G", "B♭"),
+            "C7alt", List.of("C", "E", "G♭", "G♯", "B♭")
+        );
+        assertThat(service.exercises().get(2).chords()).allSatisfy(chord -> {
+            assertThat(chord.targetNoteOptions().stream().map(PracticeService.TargetNote::name))
+                .containsExactlyElementsOf(expected.get(chord.name()));
+            assertThat(chord.targetNoteOptions()).allSatisfy(note -> assertThat(note.degree()).isNotBlank());
+        });
     }
 
     @Test void unshuffledDeckKeepsLibraryOrderAndCyclesThroughAllEightPairsInOrder() {
-        var deck = service.deck(100, 1, false);
+        var deck = service.deck(100, 1, 1, false);
         assertThat(deck.stream().map(PracticeService.Card::exercise)).containsExactlyElementsOf(service.exercises());
         for (int i = 0; i < deck.size(); i++) {
             assertThat(deck.get(i).chords().stream().map(PracticeService.Chord::name))
                 .containsExactlyElementsOf(ALLOWED_PAIRS.get(i % ALLOWED_PAIRS.size()));
+            for (int chordIndex = 0; chordIndex < 2; chordIndex++) {
+                assertThat(deck.get(i).targetNotes().get(chordIndex))
+                    .isEqualTo(deck.get(i).chords().get(chordIndex).targetNoteOptions().getFirst().name());
+            }
         }
     }
 
     @Test void fixedRangeAndTempoApplyToAllCards() {
-        assertThat(service.deck(140, 8, false)).allSatisfy(card -> {
+        assertThat(service.deck(140, 8, 4, false)).allSatisfy(card -> {
             assertThat(card.bpm()).isEqualTo(140);
             assertThat(card.fretStart()).isEqualTo(8);
             assertThat(card.fretEnd()).isEqualTo(12);
+            assertThat(card.stringStart()).isEqualTo(4);
+            assertThat(card.stringEnd()).isEqualTo(6);
         });
     }
 
+    @Test void stringRangesAlwaysHaveThreeConsecutiveStringsAndSurviveShuffling() {
+        for (int start = 1; start <= 4; start++) {
+            int expectedStart = start;
+            for (boolean shuffle : List.of(false, true)) {
+                assertThat(service.deck(100, null, start, shuffle)).allSatisfy(card -> {
+                    assertThat(card.stringStart()).isEqualTo(expectedStart);
+                    assertThat(card.stringEnd()).isEqualTo(expectedStart + 2).isBetween(3, 6);
+                });
+            }
+        }
+    }
+
+    @Test void randomStringRangesSampleAllFourWindowsWithOrWithoutShuffling() {
+        for (boolean shuffle : List.of(false, true)) {
+            var sampledStarts = new HashSet<Integer>();
+            for (int i = 0; i < 100; i++) {
+                assertThat(service.deck(100, 8, null, shuffle)).allSatisfy(card -> {
+                    assertThat(card.stringStart()).isBetween(1, 4);
+                    assertThat(card.stringEnd()).isEqualTo(card.stringStart() + 2).isBetween(3, 6);
+                    assertThat(card.fretStart()).isEqualTo(8);
+                    sampledStarts.add(card.stringStart());
+                });
+            }
+            assertThat(sampledStarts).containsExactlyInAnyOrder(1, 2, 3, 4);
+        }
+    }
+
     @Test void invalidRangesAndTemposAreRejected() {
-        assertThatThrownBy(() -> service.deck(0, 1, true)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> service.deck(100, 9, true)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> service.deck(100, 0, true)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.deck(0, 1, 1, true)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.deck(100, 9, 1, true)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.deck(100, 0, 1, true)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.deck(100, 1, 0, true)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.deck(100, 1, 5, true)).isInstanceOf(IllegalArgumentException.class);
     }
 }

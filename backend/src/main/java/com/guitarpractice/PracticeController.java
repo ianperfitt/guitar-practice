@@ -14,7 +14,8 @@ public class PracticeController {
     public PracticeController(PracticeService service) { this.service = service; }
 
     public record DeckRequest(@Min(20) @Max(300) Integer bpm,
-                              @Min(1) @Max(8) Integer fretStart, Boolean shuffle) {}
+                              @Min(1) @Max(8) Integer fretStart,
+                              @Min(1) @Max(4) Integer stringStart, Boolean shuffle) {}
     public record ApiError(String message) {}
 
     @GetMapping("/exercises")
@@ -23,6 +24,7 @@ public class PracticeController {
     @PostMapping("/decks")
     public List<PracticeService.Card> deck(@Valid @RequestBody DeckRequest request) {
         return service.deck(request.bpm() == null ? 100 : request.bpm(), request.fretStart(),
+                            request.stringStart(),
                             request.shuffle() == null || request.shuffle());
     }
 

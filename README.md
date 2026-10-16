@@ -41,11 +41,13 @@ VS Code's [Java project documentation](https://code.visualstudio.com/docs/java/j
 ## Practice
 
 - Every card combines **two distinct chords + one exercise from the exercise library**. All 16 named exercises are included. Shuffle selects only from the eight allowed ordered chord pairs and refreshes the exercise order without dropping or duplicating exercises.
+- Choose a **target note for each chord** using its dropdown. Options show the note name and chord degree: root, third, fifth, and seventh where applicable. Altered chords offer both altered fifths; B° offers its three triad tones. Each card keeps its choices while you browse or adjust tempo and fret range. Shuffling independently randomizes both targets; a page reload starts with roots.
 - Tempo defaults to **100 BPM** and can be edited from 20–300 BPM. Tempo changes apply to all cards, including the audible four-beat metronome.
 - Each card shows a five-fret **inclusive** range, always within frets 1–12. Valid positions are 1–5 through 8–12. Choose random positions per card or fix one position for the whole deck.
-- Browse freely with Previous/Next or the keyboard arrow keys. Navigation loops through the deck; shuffle anytime for fresh combinations.
+- Choose a **string range** of three consecutive strings: 1–3, 2–4, 3–5, or 4–6. String 1 is the thinnest string. The fretboard highlights the selected strings within your fret window. Choose **Random position** (the default) to sample a range per card and refresh it when shuffling, or select a fixed range for the whole deck. Fixed ranges stay saved until you choose Shuffle Deck.
+- Browse freely with Previous/Next or the keyboard arrow keys. Navigation loops through the deck. **Shuffle Deck always randomizes both fret and string ranges**, switching both dropdowns to Random position and assigning fresh windows to every card, while keeping your tempo.
 - The library supports search and direct selection of any exercise.
-- Tempo and position preferences are saved in browser local storage. No account or database is needed.
+- Tempo, fret, and string-range preferences are saved in browser local storage. No account or database is needed.
 
 ### Interpreting the original table
 
@@ -71,17 +73,19 @@ Next.js forwards `/api/*` to Spring Boot, so the browser uses a single origin.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/api/exercises` | Returns the 16 canonical exercises and chord annotations. |
-| POST | `/api/decks` | Returns cards containing one library exercise, two distinct chords, tempo, and valid fret ranges. |
+| POST | `/api/decks` | Returns cards containing one library exercise, two distinct chords, tempo, and valid fret and string ranges. |
 
 Example request:
 
 ```bash
 curl -X POST http://localhost:8080/api/decks \
   -H 'Content-Type: application/json' \
-  -d '{"bpm":100,"fretStart":null,"shuffle":true}'
+  -d '{"bpm":100,"fretStart":null,"stringStart":null,"shuffle":true}'
 ```
 
-An empty `{}` defaults to 100 BPM, random positions, and shuffling. `fretStart` is null for random positions or an integer from 1–8; the end fret is always `fretStart + 4`. `shuffle: false` returns the original exercise order and cycles through the eight ordered pairs above. Each card has an `exercise` containing the original library data and a separate `chords` array containing exactly two selected chords. Shuffling refreshes that pair for each exercise. Invalid input returns HTTP 400. Decks are generated per request and never shared between users.
+An empty `{}` defaults to 100 BPM, random positions, and shuffling. `fretStart` is null for random positions or an integer from 1–8; the end fret is always `fretStart + 4`. `shuffle: false` returns the original exercise order and cycles through the eight ordered pairs above. Each card has an `exercise` containing the original library data and a separate `chords` array containing exactly two selected chords. Each chord includes `targetNoteOptions` with note names and degrees. The card’s `targetNotes` contains one selected note name per chord in the same order. Unshuffled cards start on roots; shuffling samples both targets independently alongside the chord pair. Invalid input returns HTTP 400. Decks are generated per request and never shared between users.
+
+`stringStart` is null (or omitted) for a random range per card, or an integer from 1–4 for a fixed range. Random ranges are resampled on each deck request, including Shuffle Deck. Each card returns `stringStart` and `stringEnd`; the end string is always `stringStart + 2`, so all ranges stay within strings 1–6.
 
 ## Checks
 
@@ -92,7 +96,7 @@ npm run build
 
 Backend tests check catalog fidelity, only the eight allowed ordered pairs (including scales), shuffle completeness, inclusive fret boundaries, tempo settings, and HTTP validation. TypeScript is checked separately and by the Next.js production build.
 
-Frontend styling uses Tailwind CSS 4 with PostCSS. Component utilities live in the JSX; shared colors, fonts, animations, base styles, and layout variants live in `frontend/app/globals.css`. The `wide`, `compact`, `narrow`, `rail`, and `mobile` variants preserve the existing responsive breakpoints.
+The frontend targets Chrome on desktop and uses Tailwind CSS 4 with PostCSS. Component utilities live in the JSX; shared colors, fonts, animations, base styles, and layout variants live in `frontend/app/globals.css`. The `wide`, `compact`, and `narrow` variants adjust spacing for different desktop window sizes.
 
 Prettier uses two-space indentation, a 100-character print width, and the Tailwind plugin to sort utility classes, including grouped classes passed to `cn`. Format the frontend or check formatting with:
 
@@ -103,7 +107,7 @@ npm --prefix frontend run format:check
 
 VS Code recommends Prettier and Tailwind CSS IntelliSense. With these extensions installed, it formats source files on save and provides completions for utility classes and `cn` calls.
 
-Browser tests use the real running backend and frontend. With both running and Google Chrome installed:
+Browser tests run in desktop Chrome against the real running backend and frontend. With both running and Google Chrome installed:
 
 ```bash
 npm --prefix frontend run test:e2e

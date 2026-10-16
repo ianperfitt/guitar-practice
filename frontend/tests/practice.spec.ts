@@ -18,6 +18,7 @@ test('real API deck pairs two chords with a library exercise and preserves contr
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Up & Down Scale', exact: true })).toBeVisible();
+  await page.getByLabel('STRING RANGE', { exact: true }).selectOption('1');
   await expect(page.locator('.chord-pair .chord')).toHaveCount(2);
   await expect(page.locator('.chord-pair .chord > span')).toHaveText(['F7', 'B♭7']);
   await expect(page.locator('.pair-guidance')).toContainText('Explore the scale over each chord');
@@ -33,7 +34,9 @@ test('real API deck pairs two chords with a library exercise and preserves contr
   await expect(page.locator('.card-bottom')).toContainText('137');
   await page.getByLabel('FRET RANGE', { exact: true }).selectOption('8');
   await expect(
-    page.getByRole('img', { name: 'Guitar fretboard. Frets 8 through 12 highlighted.' }),
+    page.getByRole('img', {
+      name: 'Guitar fretboard. Frets 8 through 12, strings 1 through 3 highlighted.',
+    }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Next card', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Blues Scale', exact: true })).toBeVisible();
@@ -57,16 +60,15 @@ test('real API deck pairs two chords with a library exercise and preserves contr
   expect(pair).toHaveLength(2);
   expect(ALLOWED_PAIRS).toContainEqual(pair);
   await expect(page.locator('.card-bottom')).toContainText('137');
-  await expect(
-    page.getByRole('img', { name: 'Guitar fretboard. Frets 8 through 12 highlighted.' }),
-  ).toBeVisible();
+  await expect(page.getByLabel('FRET RANGE', { exact: true })).toHaveValue('random');
+  await expect(page.getByLabel('STRING RANGE', { exact: true })).toHaveValue('random');
   await page.getByRole('button', { name: /Exercise library/ }).click();
   await page.getByLabel('Search exercises').fill('');
   await expect(page.locator('.library-card')).toHaveCount(16);
   expect((await page.locator('.library-card h3').allTextContents()).sort()).toEqual(titles.sort());
   await page.reload();
   await expect(page.getByLabel('TEMPO', { exact: true })).toHaveValue('137');
-  await expect(page.getByLabel('FRET RANGE', { exact: true })).toHaveValue('8');
+  await expect(page.getByLabel('FRET RANGE', { exact: true })).toHaveValue('random');
   expect(errors).toEqual([]);
   const hasOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth > window.innerWidth,
@@ -83,6 +85,9 @@ test('selected chords retain exercise-specific notes and empty annotations', asy
       if (['hwht-enclosure', 'target-note-bends'].includes(card.exercise.id)) {
         card.chords = ['B°', 'F7'].map((name) =>
           card.exercise.chords.find((chord: { name: string }) => chord.name === name),
+        );
+        card.targetNotes = card.chords.map(
+          (chord: { targetNoteOptions: { name: string }[] }) => chord.targetNoteOptions[0].name,
         );
       }
     }
@@ -105,6 +110,191 @@ test('selected chords retain exercise-specific notes and empty annotations', asy
   await expect(page.getByRole('heading', { name: 'Target Note Bends', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'B° —', exact: true })).toBeVisible();
   await expect(page.locator('.chord-note')).toHaveCount(0);
+});
+
+test('target notes are independent, remain on each card, and refresh from the shuffled deck', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const firstTarget = page.getByRole('combobox', { name: 'Target note for F7', exact: true });
+  const secondTarget = page.getByRole('combobox', { name: 'Target note for B♭7', exact: true });
+  await expect(firstTarget).toHaveValue('F');
+  await expect(secondTarget).toHaveValue('B♭');
+  await expect(firstTarget.locator('option')).toHaveText(['F · Root', 'A · 3', 'C · 5', 'E♭ · ♭7']);
+  await firstTarget.selectOption('A');
+  await secondTarget.selectOption('D');
+  await expect(firstTarget).toHaveValue('A');
+  await expect(secondTarget).toHaveValue('D');
+  await expect(page.locator('.chord').nth(1)).toHaveAttribute('aria-pressed', 'true');
+
+  await page.getByRole('button', { name: 'Next card', exact: true }).click();
+  await expect(
+    page.getByRole('combobox', { name: 'Target note for F7alt', exact: true }),
+  ).toHaveValue('F');
+  await expect(secondTarget).toHaveValue('B♭');
+  await page.getByRole('button', { name: 'Previous card', exact: true }).click();
+  await expect(firstTarget).toHaveValue('A');
+  await expect(secondTarget).toHaveValue('D');
+  await page.getByLabel('TEMPO', { exact: true }).fill('125');
+  await page.getByLabel('TEMPO', { exact: true }).press('Tab');
+  await page.getByLabel('FRET RANGE', { exact: true }).selectOption('8');
+  await expect(firstTarget).toHaveValue('A');
+  await expect(secondTarget).toHaveValue('D');
+  await page.getByLabel('STRING RANGE', { exact: true }).selectOption('4');
+  await expect(firstTarget).toHaveValue('A');
+  await expect(secondTarget).toHaveValue('D');
+
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (response) => response.url().endsWith('/api/decks') && response.request().method() === 'POST',
+    ),
+    page.getByRole('button', { name: 'Shuffle deck', exact: true }).click(),
+  ]);
+  const deck = await response.json();
+  for (let i = 0; i < 2; i++) {
+    await expect(page.locator('.chord-pair select').nth(i)).toHaveValue(deck[0].targetNotes[i]);
+  }
+  await expect(page.locator('.card-bottom')).toContainText('125');
+});
+
+test('fixed string ranges persist across the deck and reload until the deck is shuffled', async ({
+  page,
+}) => {
+  // Existing fixed string preferences migrate without losing tempo or fret settings.
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('guitar-practice-settings-v1')) {
+      localStorage.setItem(
+        'guitar-practice-settings-v1',
+        JSON.stringify({ bpm: 120, fretMode: '8', stringStart: 1 }),
+      );
+    }
+  });
+  await page.goto('/');
+  const strings = page.getByLabel('STRING RANGE', { exact: true });
+  await expect(strings).toHaveValue('1');
+  await expect(page.locator('.fretboard [data-string] text')).toHaveText([
+    '6',
+    '5',
+    '4',
+    '3',
+    '2',
+    '1',
+  ]);
+  await expect(page.getByLabel('TEMPO', { exact: true })).toHaveValue('120');
+  await expect(strings.locator('option')).toHaveText([
+    'Random position',
+    'Strings 1–3',
+    'Strings 2–4',
+    'Strings 3–5',
+    'Strings 4–6',
+  ]);
+  for (const start of [1, 2, 3, 4]) {
+    await strings.selectOption(String(start));
+    await expect(
+      page.getByRole('img', {
+        name: `Guitar fretboard. Frets 8 through 12, strings ${start} through ${start + 2} highlighted.`,
+      }),
+    ).toBeVisible();
+    await expect(page.locator('.fretboard [data-selected="true"]')).toHaveCount(3);
+    const selected = await page
+      .locator('.fretboard [data-selected="true"]')
+      .evaluateAll((elements) =>
+        elements.map((element) => Number(element.getAttribute('data-string'))),
+      );
+    expect(selected).toEqual([start + 2, start + 1, start]);
+  }
+  await page.getByRole('button', { name: 'Next card', exact: true }).click();
+  await expect(page.locator('.card-bottom')).toContainText('Strings 4–6');
+  await page.getByRole('button', { name: 'Exercise library', exact: true }).click();
+  for (const card of await page.locator('.library-card').all()) {
+    await expect(card).toContainText('Strings 4–6');
+  }
+  await page.getByRole('button', { name: 'Practice deck', exact: true }).click();
+  await page.reload();
+  await expect(strings).toHaveValue('4');
+  await expect(page.locator('.card-bottom')).toContainText('Strings 4–6');
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (response) => response.url().endsWith('/api/decks') && response.request().method() === 'POST',
+    ),
+    page.getByRole('button', { name: 'Shuffle deck', exact: true }).click(),
+  ]);
+  expect(response.request().postDataJSON().stringStart).toBeNull();
+  expect(response.request().postDataJSON().fretStart).toBeNull();
+  for (const card of await response.json()) {
+    expect(card.stringStart).toBeGreaterThanOrEqual(1);
+    expect(card.stringStart).toBeLessThanOrEqual(4);
+    expect(card.stringEnd).toBe(card.stringStart + 2);
+  }
+  await expect(strings).toBeEnabled();
+  await expect(strings).toHaveValue('random');
+  await expect(page.getByLabel('FRET RANGE', { exact: true })).toHaveValue('random');
+  await page.reload();
+  await expect(strings).toHaveValue('random');
+  await expect(page.getByLabel('FRET RANGE', { exact: true })).toHaveValue('random');
+  await page.screenshot({
+    path: `../.playwright/${test.info().project.name}-string-range.png`,
+    fullPage: true,
+  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(
+    false,
+  );
+});
+
+test('shuffle always randomizes fret and string positions, including fixed selections', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const strings = page.getByLabel('STRING RANGE', { exact: true });
+  await expect(strings).toHaveValue('random');
+  await strings.selectOption('4');
+  await page.getByLabel('FRET RANGE', { exact: true }).selectOption('8');
+  await expect(page.locator('.card-bottom')).toContainText('Strings 4–6');
+  await expect(page.locator('.fretboard [data-selected="true"]')).toHaveCount(3);
+
+  for (let shuffle = 0; shuffle < 2; shuffle++) {
+    const [response] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.url().endsWith('/api/decks') && response.request().method() === 'POST',
+      ),
+      page.getByRole('button', { name: 'Shuffle deck', exact: true }).click(),
+    ]);
+    expect(response.request().postDataJSON().stringStart).toBeNull();
+    expect(response.request().postDataJSON().fretStart).toBeNull();
+    const deck = await response.json();
+    for (const card of deck) {
+      expect(card.stringStart).toBeGreaterThanOrEqual(1);
+      expect(card.stringStart).toBeLessThanOrEqual(4);
+      expect(card.stringEnd).toBe(card.stringStart + 2);
+      expect(card.fretStart).toBeGreaterThanOrEqual(1);
+      expect(card.fretStart).toBeLessThanOrEqual(8);
+      expect(card.fretEnd).toBe(card.fretStart + 4);
+    }
+    await expect(strings).toHaveValue('random');
+    await expect(page.getByLabel('FRET RANGE', { exact: true })).toHaveValue('random');
+    await expect(
+      page.getByRole('img', {
+        name: `Guitar fretboard. Frets ${deck[0].fretStart} through ${deck[0].fretEnd}, strings ${deck[0].stringStart} through ${deck[0].stringEnd} highlighted.`,
+      }),
+    ).toBeVisible();
+    await expect(page.locator('.card-position')).toContainText(
+      `Strings ${deck[0].stringStart}–${deck[0].stringEnd} selected`,
+    );
+    await expect(page.locator('.fretboard [data-selected="true"] text')).toHaveText([
+      String(deck[0].stringEnd),
+      String(deck[0].stringStart + 1),
+      String(deck[0].stringStart),
+    ]);
+    await page.getByRole('button', { name: 'Next card', exact: true }).click();
+    await expect(page.locator('.card-bottom')).toContainText(
+      `Strings ${deck[1].stringStart}–${deck[1].stringEnd}`,
+    );
+  }
+  await page.reload();
+  await expect(strings).toHaveValue('random');
+  await expect(page.getByLabel('FRET RANGE', { exact: true })).toHaveValue('random');
+  await expect(page.locator('.fretboard [data-selected="true"]')).toHaveCount(3);
 });
 
 test('deck navigation loops freely, and help and metronome work', async ({ page }) => {
