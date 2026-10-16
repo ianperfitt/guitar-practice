@@ -804,20 +804,7 @@ export default function Home() {
                               <span>YOUR TWO CHORDS</span>
                               <span>Focus · {card.chords[activeChord]?.name}</span>
                             </div>
-                            <div
-                              className={cn(
-                                'chord-grid chord-pair',
-                                'mt-3 grid grid-cols-8 gap-1',
-                                'compact:gap-[3px]',
-                                'narrow:grid-cols-4 narrow:gap-[5px]',
-                                'mobile:grid-cols-4 mobile:gap-1.5',
-                                '[&.chord-pair]:grid-cols-2 [&.chord-pair]:gap-3',
-                                '[&_.chord]:min-h-20 [&_.chord]:flex-col [&_.chord]:justify-center [&_.chord]:gap-2.5 [&_.chord]:px-3 [&_.chord]:pt-[15px] [&_.chord]:pb-[11px]',
-                                '[&_.chord>span]:font-display [&_.chord>span]:text-[24px] [&_.chord>span]:font-medium [&_.chord>span]:tracking-[-0.5px]',
-                                '[&_.chord_.emphasized]:font-bold',
-                                '[&_.chord>small]:text-[9px]',
-                              )}
-                            >
+                            <div className="chord-pair mt-3 grid grid-cols-2 gap-3">
                               {card.chords.map((chord, chordIndex) => (
                                 <button
                                   key={chord.name}
@@ -825,27 +812,25 @@ export default function Home() {
                                   onClick={() => setActiveChord(chordIndex)}
                                   aria-pressed={activeChord === chordIndex}
                                   className={cn(
-                                    `chord ${activeChord === chordIndex ? 'selected' : ''}`,
-                                    'flex min-h-[55px] flex-col items-center justify-between gap-[9px] rounded-[5px] border border-solid border-[#eaeade] bg-[#fafaf5] px-0.5 pt-[11px] pb-2 text-[#818970]',
-                                    '[&>span]:text-[10px] [&>span]:whitespace-nowrap',
-                                    '[&>small]:text-[8px] [&>small]:text-[#b0b39e]',
-                                    '[&_.emphasized]:font-bold',
-                                    '[&.selected]:border-[#acb692] [&.selected]:bg-[#e8ecdd] [&.selected]:text-[#53623d]',
-                                    '[&.selected>small]:text-[#809263]',
-                                    'hover:border-[#aeb895]',
-                                    'wide:[&>span]:text-[12px]',
-                                    'wide:min-h-16',
-                                    'compact:[&>span]:text-[9px]',
-                                    'narrow:min-h-[39px] narrow:flex-row narrow:justify-center narrow:gap-[7px] narrow:px-[3px] narrow:py-[7px]',
-                                    'narrow:[&>span]:text-[9px]',
-                                    'mobile:min-h-[42px]',
-                                    'mobile:[&>span]:text-[10px]',
+                                    'chord',
+                                    'flex min-h-20 flex-col items-center justify-center gap-2.5 rounded-[5px] border border-solid border-[#eaeade] bg-[#fafaf5] px-3 pt-[15px] pb-[11px] text-[#818970]',
+                                    'aria-pressed:border-[#acb692] aria-pressed:bg-[#e8ecdd] aria-pressed:text-[#53623d]',
+                                    'aria-pressed:[&>small]:text-[#809263]',
+                                    'hover:border-[#aeb895] aria-pressed:hover:border-[#aeb895]',
                                   )}
                                 >
-                                  <span className={chord.emphasized ? 'emphasized' : ''}>
+                                  <span
+                                    className={cn(
+                                      'font-display text-[24px] tracking-[-0.5px] whitespace-nowrap',
+                                      chord.emphasized ? 'font-bold' : 'font-medium',
+                                    )}
+                                  >
                                     {chord.name}
                                   </span>
-                                  <small title="Original exercise annotation">
+                                  <small
+                                    className="text-[9px] text-[#b0b39e]"
+                                    title="Original exercise annotation"
+                                  >
                                     {chord.annotation || '—'}
                                   </small>
                                 </button>

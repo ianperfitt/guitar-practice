@@ -92,14 +92,16 @@ npm run build
 
 Backend tests check catalog fidelity, only the eight allowed ordered pairs (including scales), shuffle completeness, inclusive fret boundaries, tempo settings, and HTTP validation. TypeScript is checked separately and by the Next.js production build.
 
-Frontend source uses Prettier with two-space indentation and a 100-character print width. Format it or check formatting with:
+Frontend styling uses Tailwind CSS 4 with PostCSS. Component utilities live in the JSX; shared colors, fonts, animations, base styles, and layout variants live in `frontend/app/globals.css`. The `wide`, `compact`, `narrow`, `rail`, and `mobile` variants preserve the existing responsive breakpoints.
+
+Prettier uses two-space indentation, a 100-character print width, and the Tailwind plugin to sort utility classes, including grouped classes passed to `cn`. Format the frontend or check formatting with:
 
 ```bash
 npm --prefix frontend run format
 npm --prefix frontend run format:check
 ```
 
-VS Code recommends the Prettier extension and formats TypeScript, JSX, CSS, and JSON on save when it is installed.
+VS Code recommends Prettier and Tailwind CSS IntelliSense. With these extensions installed, it formats source files on save and provides completions for utility classes and `cn` calls.
 
 Browser tests use the real running backend and frontend. With both running and Google Chrome installed:
 
