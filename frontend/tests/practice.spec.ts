@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import type { Card } from '../lib/practice';
 
 const ALLOWED_PAIRS = [
   ['F7', 'B♭7'],
@@ -295,6 +296,90 @@ test('shuffle always randomizes fret and string positions, including fixed selec
   await expect(strings).toHaveValue('random');
   await expect(page.getByLabel('FRET RANGE', { exact: true })).toHaveValue('random');
   await expect(page.locator('.fretboard [data-selected="true"]')).toHaveCount(3);
+});
+
+test('keeping chords shuffles only ranges across the deck and saves the preference', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const keepChords = page.getByRole('checkbox', { name: 'Keep chords when shuffling' });
+  await expect(keepChords).not.toBeChecked();
+  const shuffle = page.getByRole('button', { name: 'Shuffle deck', exact: true });
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (response) => response.url().endsWith('/api/decks') && response.request().method() === 'POST',
+    ),
+    shuffle.click(),
+  ]);
+  const deck: Card[] = await response.json();
+  await expect(shuffle).toBeEnabled();
+  await page.getByLabel('FRET RANGE', { exact: true }).selectOption('8');
+  await page.getByLabel('STRING RANGE', { exact: true }).selectOption('4');
+  await page.getByLabel('TEMPO', { exact: true }).fill('125');
+  await page.getByLabel('TEMPO', { exact: true }).press('Tab');
+  for (let i = 0; i < 3; i++) {
+    await page.getByRole('button', { name: 'Next card', exact: true }).click();
+  }
+  for (let i = 0; i < 2; i++) {
+    const note = deck[3].chords[i].targetNoteOptions[1].name;
+    await page.locator('.chord-pair select').nth(i).selectOption(note);
+    deck[3].targetNotes[i] = note;
+  }
+  await keepChords.check();
+  await shuffle.click();
+  await expect(page.locator('.chord').nth(1)).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('FRET RANGE', { exact: true })).toHaveValue('random');
+  await expect(page.getByLabel('STRING RANGE', { exact: true })).toHaveValue('random');
+
+  // Every card keeps its shuffled pairing and targets, including edited targets on card four.
+  for (let i = 0; i < deck.length; i++) {
+    const expected = deck[(i + 3) % deck.length];
+    await expect(
+      page.getByRole('heading', { name: expected.exercise.title, exact: true }),
+    ).toBeVisible();
+    await expect(page.locator('.chord-pair .chord > span')).toHaveText(
+      expected.chords.map((chord) => chord.name),
+    );
+    for (let chord = 0; chord < 2; chord++) {
+      await expect(page.locator('.chord-pair select').nth(chord)).toHaveValue(
+        expected.targetNotes[chord],
+      );
+    }
+    await expect(page.locator('.card-bottom')).toContainText('125');
+    const range = await page.locator('.fretboard').getAttribute('aria-label');
+    const [fretStart, fretEnd, stringStart, stringEnd] = range!.match(/\d+/g)!.map(Number);
+    expect(fretStart).toBeGreaterThanOrEqual(1);
+    expect(fretStart).toBeLessThan(8);
+    expect(fretEnd).toBe(fretStart + 4);
+    expect(stringStart).toBeGreaterThanOrEqual(1);
+    expect(stringStart).toBeLessThan(4);
+    expect(stringEnd).toBe(stringStart + 2);
+    await page.getByRole('button', { name: 'Next card', exact: true }).click();
+  }
+
+  const previousRange = await page.locator('.fretboard').getAttribute('aria-label');
+  await shuffle.click();
+  await expect(page.locator('.fretboard')).not.toHaveAttribute('aria-label', previousRange!);
+  await expect(
+    page.getByRole('heading', { name: deck[3].exercise.title, exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(keepChords).toBeChecked();
+  await expect(page.getByLabel('TEMPO', { exact: true })).toHaveValue('125');
+  await keepChords.uncheck();
+  const [freshResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) => response.url().endsWith('/api/decks') && response.request().method() === 'POST',
+    ),
+    shuffle.click(),
+  ]);
+  expect(freshResponse.request().postDataJSON().shuffle).toBe(true);
+  const freshDeck: Card[] = await freshResponse.json();
+  await expect(page.locator('.chord-pair .chord > span')).toHaveText(
+    freshDeck[0].chords.map((chord) => chord.name),
+  );
+  await page.reload();
+  await expect(keepChords).not.toBeChecked();
 });
 
 test('deck navigation loops freely, and help and metronome work', async ({ page }) => {

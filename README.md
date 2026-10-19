@@ -41,13 +41,14 @@ VS Code's [Java project documentation](https://code.visualstudio.com/docs/java/j
 ## Practice
 
 - Every card combines **two distinct chords + one exercise from the exercise library**. All 16 named exercises are included. Shuffle selects only from the eight allowed ordered chord pairs and refreshes the exercise order without dropping or duplicating exercises.
-- Choose a **target note for each chord** using its dropdown. Options show the note name and chord degree: root, third, fifth, and seventh where applicable. Altered chords offer both altered fifths; B° offers its three triad tones. Each card keeps its choices while you browse or adjust tempo and fret range. Shuffling independently randomizes both targets; a page reload starts with roots.
+- Choose a **target note for each chord** using its dropdown. Options show the note name and chord degree: root, third, fifth, and seventh where applicable. Altered chords offer both altered fifths; B° offers its three triad tones. Each card keeps its choices while you browse or adjust tempo and fret range. Shuffling independently randomizes both targets unless **Keep chords when shuffling** is enabled; a page reload starts with roots.
 - Tempo defaults to **100 BPM** and can be edited from 20–300 BPM. Tempo changes apply to all cards, including the audible four-beat metronome.
 - Each card shows a five-fret **inclusive** range, always within frets 1–12. Valid positions are 1–5 through 8–12. Choose random positions per card or fix one position for the whole deck.
 - Choose a **string range** of three consecutive strings: 1–3, 2–4, 3–5, or 4–6. String 1 is the thinnest string. The fretboard highlights the selected strings within your fret window. Choose **Random position** (the default) to sample a range per card and refresh it when shuffling, or select a fixed range for the whole deck. Fixed ranges stay saved until you choose Shuffle Deck.
 - Browse freely with Previous/Next or the keyboard arrow keys. Navigation loops through the deck. **Shuffle Deck always randomizes both fret and string ranges**, switching both dropdowns to Random position and assigning fresh windows to every card, while keeping your tempo.
+- Enable **Keep chords when shuffling** in Practice settings to change only fret and string ranges. Every card gets a different fret window and string range while keeping its chord pair, target notes, tempo, and exercise. Card order and your current card also stay the same. Turn it off to resume full-deck shuffling.
 - The library supports search and direct selection of any exercise.
-- Tempo, fret, and string-range preferences are saved in browser local storage. No account or database is needed.
+- Tempo, fret, string-range, and keep-chords preferences are saved in browser local storage. No account or database is needed.
 
 ### Interpreting the original table
 

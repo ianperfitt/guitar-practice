@@ -30,15 +30,21 @@ import {
   X,
 } from 'lucide-react';
 
-type Settings = { bpm: number; fretMode: string; stringMode: string };
+type Settings = { bpm: number; fretMode: string; stringMode: string; keepChords: boolean };
 const STORAGE_KEY = 'guitar-practice-settings-v1';
-const DEFAULT_SETTINGS: Settings = { bpm: 100, fretMode: 'random', stringMode: 'random' };
+const DEFAULT_SETTINGS: Settings = {
+  bpm: 100,
+  fretMode: 'random',
+  stringMode: 'random',
+  keepChords: false,
+};
 
 function readSettings(): Settings {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
     return {
       bpm: Number.isInteger(saved?.bpm) && saved.bpm >= 20 && saved.bpm <= 300 ? saved.bpm : 100,
+      keepChords: saved?.keepChords === true,
       fretMode:
         saved?.fretMode === 'random' || /^[1-8]$/.test(saved?.fretMode) ? saved.fretMode : 'random',
       stringMode:
@@ -51,6 +57,11 @@ function readSettings(): Settings {
   } catch {
     return DEFAULT_SETTINGS;
   }
+}
+
+function differentPosition(current: number, positions: number): number {
+  const position = Math.floor(Math.random() * (positions - 1)) + 1;
+  return position >= current ? position + 1 : position;
 }
 
 async function requestDeck(
@@ -349,6 +360,25 @@ export default function Home() {
     setError('');
     try {
       const shuffledSettings = { ...settings, fretMode: 'random', stringMode: 'random' };
+      if (settings.keepChords && cards.length) {
+        setCards((previous) =>
+          previous.map((item) => {
+            const fretStart = differentPosition(item.fretStart, 8);
+            const stringStart = differentPosition(item.stringStart, 4);
+            return {
+              ...item,
+              fretStart,
+              fretEnd: fretStart + 4,
+              stringStart,
+              stringEnd: stringStart + 2,
+            };
+          }),
+        );
+        setSettings(shuffledSettings);
+        setView('practice');
+        setNotice('New fret and string ranges. Chords and target notes kept.');
+        return;
+      }
       const deck = await requestDeck(shuffledSettings, true);
       setSettings(shuffledSettings);
       setCards(deck);
@@ -1178,6 +1208,31 @@ export default function Home() {
                       disabled={loading}
                       onChange={changeStringRange}
                     />
+                    <div className="mb-5 border-t border-[#dfe3d0] pt-5">
+                      <label className="flex cursor-pointer items-center gap-2 text-[10px] text-[#717e5e]">
+                        <input
+                          type="checkbox"
+                          checked={settings.keepChords}
+                          disabled={loading}
+                          aria-describedby="keep-chords-description"
+                          onChange={(event) =>
+                            setSettings((previous) => ({
+                              ...previous,
+                              keepChords: event.target.checked,
+                            }))
+                          }
+                          className="h-3.5 w-3.5 shrink-0 accent-olive"
+                        />
+                        Keep chords when shuffling
+                      </label>
+                      <p
+                        id="keep-chords-description"
+                        className="mt-2.5 mb-0 text-[9px] leading-[1.7] text-[#a0a78d]"
+                      >
+                        Only fret and string ranges change. Target notes and card order stay the
+                        same.
+                      </p>
+                    </div>
                     <div
                       className={cn(
                         'settings-footnote',
@@ -1444,7 +1499,8 @@ export default function Home() {
           <p>
             Each card combines two distinct chords with one exercise from your library. Shuffle to
             refresh the chord pairings, target notes, exercise order, and random fret and string
-            positions.
+            positions. Enable “Keep chords when shuffling” to change only the fret and string
+            ranges, keeping your chords, target notes, card order, and current card.
           </p>
           <ol>
             <li>
@@ -1461,8 +1517,9 @@ export default function Home() {
               <strong>Follow the card.</strong> Apply the library exercise to the two chords shown.
               Click either chord to focus on it and choose a chord tone from its Target note
               selector. Each card remembers your choices while you browse; shuffling randomizes both
-              targets. Scale exercises also receive a chord pair. The small numbers preserve the
-              original annotations; a dash means none was supplied.
+              targets unless “Keep chords when shuffling” is enabled. Scale exercises also receive a
+              chord pair. The small numbers preserve the original annotations; a dash means none was
+              supplied.
             </li>
             <li>
               <strong>Keep moving.</strong> Use the arrows to browse at your own pace, or shuffle
