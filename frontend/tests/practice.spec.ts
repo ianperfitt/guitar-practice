@@ -307,7 +307,9 @@ test('keeping chords shuffles only ranges across the deck and saves the preferen
   const shuffle = page.getByRole('button', { name: 'Shuffle deck', exact: true });
   const [response] = await Promise.all([
     page.waitForResponse(
-      (response) => response.url().endsWith('/api/decks') && response.request().method() === 'POST',
+      (response) =>
+        response.url().endsWith('/api/decks') &&
+        response.request().postDataJSON()?.shuffle === true,
     ),
     shuffle.click(),
   ]);
@@ -380,6 +382,70 @@ test('keeping chords shuffles only ranges across the deck and saves the preferen
   );
   await page.reload();
   await expect(keepChords).not.toBeChecked();
+});
+
+test('song selection controls chords through shuffle, chord locking, and reload', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const song = page.getByRole('combobox', { name: 'SONG', exact: true });
+  await expect(song).toHaveValue('billies-bounce');
+  await expect(song.locator('option')).toHaveText([
+    "Billie's Bounce",
+    'Hornful Soul',
+    "Bag's Groove",
+    'All Blues',
+  ]);
+  await page.getByLabel('FRET RANGE', { exact: true }).selectOption('8');
+  await page.getByLabel('STRING RANGE', { exact: true }).selectOption('4');
+  await page.getByRole('checkbox', { name: 'Keep chords when shuffling' }).check();
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/decks') &&
+        response.request().postDataJSON()?.songId === 'all-blues',
+    ),
+    song.selectOption('all-blues'),
+  ]);
+  const deck: Card[] = await response.json();
+  expect(deck).toHaveLength(16);
+  for (const card of deck) {
+    expect(card.chords).toHaveLength(2);
+    expect(card.chords[0].name).not.toBe(card.chords[1].name);
+    for (const chord of card.chords) expect(['G7', 'C7', 'Dalt', 'D#alt']).toContain(chord.name);
+    expect(card.fretStart).toBe(8);
+    expect(card.stringStart).toBe(4);
+  }
+  await expect(song).toHaveValue('all-blues');
+  await expect(page.locator('#song-chords')).toHaveText('Chords: G7 · C7 · Dalt · D#alt');
+  await expect(page.locator('.chord-pair .chord > span')).toHaveText(['G7', 'C7']);
+  await expect(
+    page.getByRole('combobox', { name: 'Target note for G7', exact: true }).locator('option'),
+  ).toHaveText(['G · Root', 'B · 3', 'D · 5', 'F · ♭7']);
+  await page.getByRole('button', { name: 'Shuffle deck', exact: true }).click();
+  await expect(page.locator('.chord-pair .chord > span')).toHaveText(['G7', 'C7']);
+  await page.reload();
+  await expect(song).toHaveValue('all-blues');
+  await expect(page.locator('.chord-pair .chord > span')).toHaveText(['G7', 'C7']);
+  await page.getByRole('checkbox', { name: 'Keep chords when shuffling' }).uncheck();
+  const [shuffledResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/decks') &&
+        response.request().postDataJSON()?.shuffle === true,
+    ),
+    page.getByRole('button', { name: 'Shuffle deck', exact: true }).click(),
+  ]);
+  expect(shuffledResponse.request().postDataJSON().songId).toBe('all-blues');
+  for (const card of (await shuffledResponse.json()) as Card[]) {
+    for (const chord of card.chords) expect(['G7', 'C7', 'Dalt', 'D#alt']).toContain(chord.name);
+  }
+  for (const id of ['hornful-soul', 'bags-groove', 'billies-bounce']) {
+    await song.selectOption(id);
+    await expect(song).toBeEnabled();
+    await expect(song).toHaveValue(id);
+    await expect(page.locator('.chord-pair .chord > span')).toHaveText(['F7', 'B♭7']);
+  }
 });
 
 test('deck navigation loops freely, and help and metronome work', async ({ page }) => {

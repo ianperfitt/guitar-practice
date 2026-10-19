@@ -40,7 +40,8 @@ VS Code's [Java project documentation](https://code.visualstudio.com/docs/java/j
 
 ## Practice
 
-- Every card combines **two distinct chords + one exercise from the exercise library**. All 16 named exercises are included. Shuffle selects only from the eight allowed ordered chord pairs and refreshes the exercise order without dropping or duplicating exercises.
+- Select a **song** in Practice settings to determine the available chords. **Billie's Bounce**, **Hornful Soul**, and **Bag's Groove** share the original chords and eight ordered pairs below. **All Blues** uses only these five ordered pairs: **G7 → C7**, **C7 → G7**, **G7 → Dalt**, **Dalt → D#alt**, and **D#alt → G7**. Song changes rebuild the deck using your current tempo and ranges, including when Keep chords when shuffling is enabled. Your selected song is saved in this browser.
+- Every card combines **two distinct chords + one exercise from the exercise library**. All 16 named exercises are included. Shuffle selects chord pairs from the selected song and refreshes the exercise order without dropping or duplicating exercises.
 - Choose a **target note for each chord** using its dropdown. Options show the note name and chord degree: root, third, fifth, and seventh where applicable. Altered chords offer both altered fifths; B° offers its three triad tones. Each card keeps its choices while you browse or adjust tempo and fret range. Shuffling independently randomizes both targets unless **Keep chords when shuffling** is enabled; a page reload starts with roots.
 - Tempo defaults to **100 BPM** and can be edited from 20–300 BPM. Tempo changes apply to all cards, including the audible four-beat metronome.
 - Each card shows a five-fret **inclusive** range, always within frets 1–12. Valid positions are 1–5 through 8–12. Choose random positions per card or fix one position for the whole deck.
@@ -54,7 +55,7 @@ VS Code's [Java project documentation](https://code.visualstudio.com/docs/java/j
 
 The standalone rows of `1`s are retained as annotations on the preceding exercise, rather than separate cards. No musical meaning is assigned to those numbers. Target Note Bends retains the empty B° annotation (shown as a dash). HWHT Enclosure retains “Whole–Half or Half–Whole” on B°. Bold chord names preserve the emphasis from the table. Chord labels use F7alt, B♭7, B°, and C7alt.
 
-Up & Down Scale and Blues Scale have no supplied chord progression in the library. Every practice card, including scales, uses exactly one of these ordered pairs:
+Up & Down Scale and Blues Scale have no supplied chord progression in the library. For Billie's Bounce, Hornful Soul, and Bag's Groove, every practice card, including scales, uses exactly one of these ordered pairs:
 
 - F7 → B♭7
 - F7alt → B♭7
@@ -85,6 +86,8 @@ curl -X POST http://localhost:8080/api/decks \
 ```
 
 An empty `{}` defaults to 100 BPM, random positions, and shuffling. `fretStart` is null for random positions or an integer from 1–8; the end fret is always `fretStart + 4`. `shuffle: false` returns the original exercise order and cycles through the eight ordered pairs above. Each card has an `exercise` containing the original library data and a separate `chords` array containing exactly two selected chords. Each chord includes `targetNoteOptions` with note names and degrees. The card’s `targetNotes` contains one selected note name per chord in the same order. Unshuffled cards start on roots; shuffling samples both targets independently alongside the chord pair. Invalid input returns HTTP 400. Decks are generated per request and never shared between users.
+
+`songId` selects `billies-bounce` (the default), `hornful-soul`, `bags-groove`, or `all-blues`. Unknown IDs return HTTP 400. All Blues samples only G7 → C7, C7 → G7, G7 → Dalt, Dalt → D#alt, and D#alt → G7; an unshuffled deck cycles through those five pairs in that order. The other songs retain the eight original ordered pairs.
 
 `stringStart` is null (or omitted) for a random range per card, or an integer from 1–4 for a fixed range. Random ranges are resampled on each deck request, including Shuffle Deck. Each card returns `stringStart` and `stringEnd`; the end string is always `stringStart + 2`, so all ranges stay within strings 1–6.
 

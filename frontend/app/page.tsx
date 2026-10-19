@@ -3,7 +3,7 @@
 import { cn } from '@/lib/cn';
 import { ChordTarget } from '@/components/chord-target';
 import { StringRange } from '@/components/string-range';
-import type { Card } from '@/lib/practice';
+import { SONGS, type Card, type SongId } from '@/lib/practice';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -30,13 +30,20 @@ import {
   X,
 } from 'lucide-react';
 
-type Settings = { bpm: number; fretMode: string; stringMode: string; keepChords: boolean };
+type Settings = {
+  bpm: number;
+  fretMode: string;
+  stringMode: string;
+  keepChords: boolean;
+  songId: SongId;
+};
 const STORAGE_KEY = 'guitar-practice-settings-v1';
 const DEFAULT_SETTINGS: Settings = {
   bpm: 100,
   fretMode: 'random',
   stringMode: 'random',
   keepChords: false,
+  songId: 'billies-bounce',
 };
 
 function readSettings(): Settings {
@@ -45,6 +52,9 @@ function readSettings(): Settings {
     return {
       bpm: Number.isInteger(saved?.bpm) && saved.bpm >= 20 && saved.bpm <= 300 ? saved.bpm : 100,
       keepChords: saved?.keepChords === true,
+      songId: SONGS.some((song) => song.id === saved?.songId)
+        ? saved.songId
+        : DEFAULT_SETTINGS.songId,
       fretMode:
         saved?.fretMode === 'random' || /^[1-8]$/.test(saved?.fretMode) ? saved.fretMode : 'random',
       stringMode:
@@ -75,6 +85,7 @@ async function requestDeck(
     signal,
     body: JSON.stringify({
       bpm: settings.bpm,
+      songId: settings.songId,
       fretStart: settings.fretMode === 'random' ? null : Number(settings.fretMode),
       stringStart: settings.stringMode === 'random' ? null : Number(settings.stringMode),
       shuffle,
@@ -310,6 +321,7 @@ export default function Home() {
   const dialog = useRef<HTMLDialogElement>(null);
   const metronome = useMetronome(settings.bpm);
   const card = cards[index];
+  const song = SONGS.find((song) => song.id === settings.songId)!;
 
   useEffect(() => {
     const saved = readSettings();
@@ -354,6 +366,25 @@ export default function Home() {
     },
     [cards.length],
   );
+
+  async function changeSong(songId: SongId) {
+    if (songId === settings.songId) return;
+    setLoading(true);
+    setError('');
+    try {
+      const nextSettings = { ...settings, songId };
+      const deck = await requestDeck(nextSettings, false);
+      setSettings(nextSettings);
+      setCards(deck);
+      setIndex(0);
+      setActiveChord(0);
+      setNotice(`Ready to practice ${SONGS.find((song) => song.id === songId)!.name}.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not change the song.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function shuffleDeck() {
     setLoading(true);
@@ -1031,6 +1062,34 @@ export default function Home() {
                       'narrow:px-3.75',
                     )}
                   >
+                    <div className="mb-5 border-b border-[#dfe3d0] pb-5">
+                      <label
+                        htmlFor="song"
+                        className="text-[9px] font-[550] tracking-[1.2px] text-[#899375]"
+                      >
+                        SONG
+                      </label>
+                      <select
+                        id="song"
+                        value={settings.songId}
+                        disabled={loading}
+                        onChange={(event) => void changeSong(event.target.value as SongId)}
+                        aria-describedby="song-chords"
+                        className="mt-3.25 block w-full cursor-pointer rounded-[5px] border border-[#dce1cc] bg-[#f8f9f0] px-2.75 py-2.5 text-[11px] text-[#717e5e]"
+                      >
+                        {SONGS.map((song) => (
+                          <option key={song.id} value={song.id}>
+                            {song.name}
+                          </option>
+                        ))}
+                      </select>
+                      <p
+                        id="song-chords"
+                        className="mt-2.5 mb-0 text-[9px] leading-[1.7] text-[#899375]"
+                      >
+                        Chords: {song.chords.join(' · ')}
+                      </p>
+                    </div>
                     <div
                       className={cn(
                         'control-heading',
@@ -1496,6 +1555,12 @@ export default function Home() {
             YOUR DAILY PRACTICE, SIMPLIFIED
           </div>
           <h2>Pick up. Shuffle. Play.</h2>
+          <p>
+            Choose a song in Practice settings to set the available chords. All Blues uses G7, C7,
+            Dalt, and D#alt; Billie’s Bounce, Hornful Soul, and Bag’s Groove share the original
+            chord set. Changing songs builds a new deck, even when “Keep chords when shuffling” is
+            enabled.
+          </p>
           <p>
             Each card combines two distinct chords with one exercise from your library. Shuffle to
             refresh the chord pairings, target notes, exercise order, and random fret and string

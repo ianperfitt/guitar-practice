@@ -15,7 +15,7 @@ public class PracticeController {
 
     public record DeckRequest(@Min(20) @Max(300) Integer bpm,
                               @Min(1) @Max(8) Integer fretStart,
-                              @Min(1) @Max(4) Integer stringStart, Boolean shuffle) {}
+                              @Min(1) @Max(4) Integer stringStart, Boolean shuffle, String songId) {}
     public record ApiError(String message) {}
 
     @GetMapping("/exercises")
@@ -25,7 +25,7 @@ public class PracticeController {
     public List<PracticeService.Card> deck(@Valid @RequestBody DeckRequest request) {
         return service.deck(request.bpm() == null ? 100 : request.bpm(), request.fretStart(),
                             request.stringStart(),
-                            request.shuffle() == null || request.shuffle());
+                            request.shuffle() == null || request.shuffle(), request.songId());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

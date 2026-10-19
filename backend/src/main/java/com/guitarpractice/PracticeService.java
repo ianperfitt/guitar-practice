@@ -28,6 +28,13 @@ public class PracticeService {
     );
 
     private static final List<Chord> DEFAULT_CHORDS = chords(false, false);
+    private static final List<List<String>> ALL_BLUES_PAIRS = List.of(
+        List.of("G7", "C7"),
+        List.of("C7", "G7"),
+        List.of("G7", "Dalt"),
+        List.of("Dalt", "D#alt"),
+        List.of("D#alt", "G7")
+    );
 
     private static final List<Exercise> EXERCISES = List.of(
         exercise("up-down-scale", "Up & Down Scale", "Scales", "Get comfortable in your position. Play the scale ascending and descending, keeping every note even and connected.", false, false, true),
@@ -74,6 +81,9 @@ public class PracticeService {
             case "D7" -> List.of(target("D", "1"), target("F♯", "3"), target("A", "5"), target("C", "♭7"));
             case "C7" -> List.of(target("C", "1"), target("E", "3"), target("G", "5"), target("B♭", "♭7"));
             case "C7alt" -> List.of(target("C", "1"), target("E", "3"), target("G♭", "♭5"), target("G♯", "♯5"), target("B♭", "♭7"));
+            case "G7" -> List.of(target("G", "1"), target("B", "3"), target("D", "5"), target("F", "♭7"));
+            case "Dalt" -> List.of(target("D", "1"), target("F♯", "3"), target("A♭", "♭5"), target("A♯", "♯5"), target("C", "♭7"));
+            case "D#alt" -> List.of(target("D♯", "1"), target("F𝄪", "3"), target("A", "♭5"), target("B", "♯5"), target("C♯", "♭7"));
             default -> throw new IllegalArgumentException("Unknown chord: " + name);
         };
         return new Chord(name, annotation, note, emphasized, options);
@@ -84,6 +94,15 @@ public class PracticeService {
     public List<Exercise> exercises() { return EXERCISES; }
 
     public List<Card> deck(int bpm, Integer fretStart, Integer stringStart, boolean shuffle) {
+        return deck(bpm, fretStart, stringStart, shuffle, null);
+    }
+
+    public List<Card> deck(int bpm, Integer fretStart, Integer stringStart, boolean shuffle, String songId) {
+        var pairs = switch (songId == null ? "billies-bounce" : songId) {
+            case "billies-bounce", "hornful-soul", "bags-groove" -> CHORD_PAIRS;
+            case "all-blues" -> ALL_BLUES_PAIRS;
+            default -> throw new IllegalArgumentException("Unknown song: " + songId);
+        };
         if (bpm < 20 || bpm > 300) throw new IllegalArgumentException("BPM must be between 20 and 300.");
         if (fretStart != null && (fretStart < 1 || fretStart > 8)) {
             throw new IllegalArgumentException("Start fret must be between 1 and 8.");
@@ -97,10 +116,11 @@ public class PracticeService {
             var exercise = order.get(index);
             // Scale-only exercises use the same chord pool as the rest of the library.
             var pool = exercise.chords().isEmpty() ? DEFAULT_CHORDS : exercise.chords();
-            var pair = CHORD_PAIRS.get(shuffle ? ThreadLocalRandom.current().nextInt(CHORD_PAIRS.size())
-                                             : index % CHORD_PAIRS.size());
+            var pair = pairs.get(shuffle ? ThreadLocalRandom.current().nextInt(pairs.size())
+                                        : index % pairs.size());
             var chords = pair.stream().map(name -> pool.stream()
-                .filter(chord -> chord.name().equals(name)).findFirst().orElseThrow()).toList();
+                .filter(chord -> chord.name().equals(name)).findFirst()
+                .orElseGet(() -> chord(name, "", "", false))).toList();
             var targets = chords.stream().map(chord -> {
                 var options = chord.targetNoteOptions();
                 return options.get(shuffle ? ThreadLocalRandom.current().nextInt(options.size()) : 0).name();
