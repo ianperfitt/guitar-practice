@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Guitar Practice — Find your flow',
+  title: 'Guitar & Piano Practice — Find your flow',
   description:
-    'Two chords and one library exercise on every card, with editable tempo and five-fret positions.',
+    'Separate guitar and piano practice decks and exercise libraries, with two chords on every card and editable tempo.',
 };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (

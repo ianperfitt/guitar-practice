@@ -15,17 +15,20 @@ public class PracticeController {
 
     public record DeckRequest(@Min(20) @Max(300) Integer bpm,
                               @Min(1) @Max(8) Integer fretStart,
-                              @Min(1) @Max(4) Integer stringStart, Boolean shuffle, String songId) {}
+                              @Min(1) @Max(4) Integer stringStart, Boolean shuffle, String songId,
+                              String instrument) {}
     public record ApiError(String message) {}
 
     @GetMapping("/exercises")
-    public List<PracticeService.Exercise> exercises() { return service.exercises(); }
+    public List<PracticeService.Exercise> exercises(@RequestParam(required = false) String instrument) {
+        return service.exercises(instrument);
+    }
 
     @PostMapping("/decks")
     public List<PracticeService.Card> deck(@Valid @RequestBody DeckRequest request) {
         return service.deck(request.bpm() == null ? 100 : request.bpm(), request.fretStart(),
                             request.stringStart(),
-                            request.shuffle() == null || request.shuffle(), request.songId());
+                            request.shuffle() == null || request.shuffle(), request.songId(), request.instrument());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

@@ -3,7 +3,7 @@
 import { cn } from '@/lib/cn';
 import { ChordTarget } from '@/components/chord-target';
 import { StringRange } from '@/components/string-range';
-import { SONGS, type Card, type SongId } from '@/lib/practice';
+import { songsFor, type Card, type Instrument, type SongId } from '@/lib/practice';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -19,6 +19,7 @@ import {
   Minus,
   Music2,
   Pause,
+  Piano,
   Play,
   Plus,
   RotateCcw,
@@ -37,7 +38,16 @@ type Settings = {
   keepChords: boolean;
   songId: SongId;
 };
-const STORAGE_KEY = 'guitar-practice-settings-v1';
+type WorkspaceSession = {
+  cards: Card[];
+  index: number;
+  settings: Settings;
+  view: 'practice' | 'library';
+  query: string;
+  activeChord: number;
+};
+const INSTRUMENT_STORAGE_KEY = 'practice-instrument-v1';
+const storageKey = (instrument: Instrument) => `${instrument}-practice-settings-v1`;
 const DEFAULT_SETTINGS: Settings = {
   bpm: 100,
   fretMode: 'random',
@@ -46,15 +56,20 @@ const DEFAULT_SETTINGS: Settings = {
   songId: 'billies-bounce',
 };
 
-function readSettings(): Settings {
+function defaultSettings(instrument: Instrument): Settings {
+  return { ...DEFAULT_SETTINGS, songId: songsFor(instrument)[0].id };
+}
+
+function readSettings(instrument: Instrument): Settings {
+  const defaults = defaultSettings(instrument);
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    const saved = JSON.parse(localStorage.getItem(storageKey(instrument)) || 'null');
     return {
       bpm: Number.isInteger(saved?.bpm) && saved.bpm >= 20 && saved.bpm <= 300 ? saved.bpm : 100,
       keepChords: saved?.keepChords === true,
-      songId: SONGS.some((song) => song.id === saved?.songId)
+      songId: songsFor(instrument).some((song) => song.id === saved?.songId)
         ? saved.songId
-        : DEFAULT_SETTINGS.songId,
+        : defaults.songId,
       fretMode:
         saved?.fretMode === 'random' || /^[1-8]$/.test(saved?.fretMode) ? saved.fretMode : 'random',
       stringMode:
@@ -65,7 +80,7 @@ function readSettings(): Settings {
             : 'random',
     };
   } catch {
-    return DEFAULT_SETTINGS;
+    return defaults;
   }
 }
 
@@ -75,6 +90,7 @@ function differentPosition(current: number, positions: number): number {
 }
 
 async function requestDeck(
+  instrument: Instrument,
   settings: Settings,
   shuffle: boolean,
   signal?: AbortSignal,
@@ -84,10 +100,15 @@ async function requestDeck(
     headers: { 'Content-Type': 'application/json' },
     signal,
     body: JSON.stringify({
+      instrument,
       bpm: settings.bpm,
       songId: settings.songId,
-      fretStart: settings.fretMode === 'random' ? null : Number(settings.fretMode),
-      stringStart: settings.stringMode === 'random' ? null : Number(settings.stringMode),
+      fretStart:
+        instrument === 'piano' || settings.fretMode === 'random' ? null : Number(settings.fretMode),
+      stringStart:
+        instrument === 'piano' || settings.stringMode === 'random'
+          ? null
+          : Number(settings.stringMode),
       shuffle,
     }),
   });
@@ -308,27 +329,77 @@ function useMetronome(bpm: number) {
 }
 
 export default function Home() {
-  const [cards, setCards] = useState<Card[]>([]);
-  const [index, setIndex] = useState(0);
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const [tempoText, setTempoText] = useState('100');
-  const [view, setView] = useState<'practice' | 'library'>('practice');
-  const [loading, setLoading] = useState(true);
+  const [instrument, setInstrument] = useState<Instrument>('guitar');
+  const sessions = useRef<Partial<Record<Instrument, WorkspaceSession>>>({});
+  const rememberSession = useCallback((instrument: Instrument, session: WorkspaceSession) => {
+    sessions.current[instrument] = session;
+  }, []);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(INSTRUMENT_STORAGE_KEY) === 'piano') setInstrument('piano');
+    } catch {
+      /* Practice still works without storage. */
+    }
+  }, []);
+
+  function changeInstrument(next: Instrument) {
+    setInstrument(next);
+    try {
+      localStorage.setItem(INSTRUMENT_STORAGE_KEY, next);
+    } catch {
+      /* Practice still works without storage. */
+    }
+  }
+
+  return (
+    <PracticeWorkspace
+      key={instrument}
+      instrument={instrument}
+      initialSession={sessions.current[instrument]}
+      onSessionChange={rememberSession}
+      onInstrumentChange={changeInstrument}
+    />
+  );
+}
+
+function PracticeWorkspace({
+  instrument,
+  initialSession,
+  onSessionChange,
+  onInstrumentChange,
+}: {
+  instrument: Instrument;
+  initialSession?: WorkspaceSession;
+  onSessionChange: (instrument: Instrument, session: WorkspaceSession) => void;
+  onInstrumentChange: (instrument: Instrument) => void;
+}) {
+  const piano = instrument === 'piano';
+  const instrumentName = piano ? 'Piano' : 'Guitar';
+  const songs = songsFor(instrument);
+  const [cards, setCards] = useState<Card[]>(initialSession?.cards ?? []);
+  const [index, setIndex] = useState(initialSession?.index ?? 0);
+  const [settings, setSettings] = useState<Settings>(
+    () => initialSession?.settings ?? defaultSettings(instrument),
+  );
+  const [tempoText, setTempoText] = useState(String(initialSession?.settings.bpm ?? 100));
+  const [view, setView] = useState<'practice' | 'library'>(initialSession?.view ?? 'practice');
+  const [loading, setLoading] = useState(!initialSession);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [query, setQuery] = useState('');
-  const [activeChord, setActiveChord] = useState(0);
+  const [query, setQuery] = useState(initialSession?.query ?? '');
+  const [activeChord, setActiveChord] = useState(initialSession?.activeChord ?? 0);
   const dialog = useRef<HTMLDialogElement>(null);
   const metronome = useMetronome(settings.bpm);
   const card = cards[index];
-  const song = SONGS.find((song) => song.id === settings.songId)!;
+  const song = songs.find((song) => song.id === settings.songId)!;
 
   useEffect(() => {
-    const saved = readSettings();
+    if (initialSession) return;
+    const saved = readSettings(instrument);
     setSettings(saved);
     setTempoText(String(saved.bpm));
     const controller = new AbortController();
-    requestDeck(saved, false, controller.signal)
+    requestDeck(instrument, saved, false, controller.signal)
       .then((deck) => {
         setCards(deck);
         setLoading(false);
@@ -340,20 +411,23 @@ export default function Home() {
         }
       });
     return () => controller.abort();
-  }, []);
+  }, [instrument, initialSession]);
+
+  useEffect(() => {
+    if (!loading && cards.length) {
+      onSessionChange(instrument, { cards, index, settings, view, query, activeChord });
+    }
+  }, [instrument, cards, index, settings, view, query, activeChord, loading, onSessionChange]);
 
   useEffect(() => {
     if (!loading && cards.length) {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+        localStorage.setItem(storageKey(instrument), JSON.stringify(settings));
       } catch {
         /* Practice still works without storage. */
       }
     }
-  }, [settings, loading, cards.length]);
-  useEffect(() => {
-    setActiveChord(0);
-  }, [index]);
+  }, [instrument, settings, loading, cards.length]);
   useEffect(() => {
     if (!notice) return;
     const timeout = setTimeout(() => setNotice(''), 3500);
@@ -363,6 +437,7 @@ export default function Home() {
   const navigate = useCallback(
     (direction: number) => {
       setIndex((value) => (cards.length ? (value + direction + cards.length) % cards.length : 0));
+      setActiveChord(0);
     },
     [cards.length],
   );
@@ -373,12 +448,12 @@ export default function Home() {
     setError('');
     try {
       const nextSettings = { ...settings, songId };
-      const deck = await requestDeck(nextSettings, false);
+      const deck = await requestDeck(instrument, nextSettings, false);
       setSettings(nextSettings);
       setCards(deck);
       setIndex(0);
       setActiveChord(0);
-      setNotice(`Ready to practice ${SONGS.find((song) => song.id === songId)!.name}.`);
+      setNotice(`Ready to practice ${songs.find((song) => song.id === songId)!.name}.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not change the song.');
     } finally {
@@ -391,11 +466,11 @@ export default function Home() {
     setError('');
     try {
       const shuffledSettings = { ...settings, fretMode: 'random', stringMode: 'random' };
-      if (settings.keepChords && cards.length) {
+      if (!piano && settings.keepChords && cards.length) {
         setCards((previous) =>
           previous.map((item) => {
-            const fretStart = differentPosition(item.fretStart, 8);
-            const stringStart = differentPosition(item.stringStart, 4);
+            const fretStart = differentPosition(item.fretStart ?? 1, 8);
+            const stringStart = differentPosition(item.stringStart ?? 1, 4);
             return {
               ...item,
               fretStart,
@@ -410,7 +485,7 @@ export default function Home() {
         setNotice('New fret and string ranges. Chords and target notes kept.');
         return;
       }
-      const deck = await requestDeck(shuffledSettings, true);
+      const deck = await requestDeck(instrument, shuffledSettings, true);
       setSettings(shuffledSettings);
       setCards(deck);
       setIndex(0);
@@ -524,15 +599,30 @@ export default function Home() {
             'narrow:[&_img]:h-8.5 narrow:[&_img]:w-8.5',
           )}
           href="/"
-          aria-label="Guitar Practice home"
+          aria-label={`${instrumentName} Practice home`}
         >
-          <img src="/pick.svg" width="39" height="39" alt="" />
+          {piano ? (
+            <Piano size={39} className="text-olive" aria-hidden="true" />
+          ) : (
+            <img src="/pick.svg" width="39" height="39" alt="" />
+          )}
           <span>
-            Guitar
+            {instrumentName}
             <br />
             Practice<span className={cn('brand-dot', 'text-[#859263]')}>.</span>
           </span>
         </a>
+        <label className="mx-2.5 mb-6 block text-[10px] text-[#717e5e]">
+          Instrument
+          <select
+            className="mt-2 block w-full rounded-md border border-[#dce1cc] bg-[#f8f9f0] p-2 text-[12px]"
+            value={instrument}
+            onChange={(event) => onInstrumentChange(event.target.value as Instrument)}
+          >
+            <option value="guitar">Guitar</option>
+            <option value="piano">Piano</option>
+          </select>
+        </label>
         <div
           className={cn(
             'workspace-label',
@@ -544,7 +634,7 @@ export default function Home() {
         </div>
         <nav className={'flex flex-col gap-2'} aria-label="Main navigation">
           <button
-            aria-label="Practice deck"
+            aria-label={`${instrumentName} practice deck`}
             aria-current={view === 'practice' ? 'page' : undefined}
             className={cn(
               `nav-item ${view === 'practice' ? cn('active', '[&_.nav-dot]:opacity-100') : ''}`,
@@ -557,13 +647,13 @@ export default function Home() {
             onClick={() => setView('practice')}
           >
             <Layers3 size={18} />
-            <span>Practice deck</span>
+            <span>{instrumentName} deck</span>
             <span
               className={cn('nav-dot', 'ml-auto h-1.25 w-1.25 rounded-full bg-[#6b7d49] opacity-0')}
             />
           </button>
           <button
-            aria-label="Exercise library"
+            aria-label={`${instrumentName} exercise library`}
             aria-current={view === 'library' ? 'page' : undefined}
             className={cn(
               `nav-item ${view === 'library' ? cn('active', '[&_.nav-dot]:opacity-100') : ''}`,
@@ -576,8 +666,10 @@ export default function Home() {
             onClick={() => setView('library')}
           >
             <BookOpen size={18} />
-            <span>Exercise library</span>
-            <span className={cn('nav-count', 'ml-auto text-[10px] text-[#929681]')}>16</span>
+            <span>{instrumentName} library</span>
+            <span className={cn('nav-count', 'ml-auto text-[10px] text-[#929681]')}>
+              {cards.length}
+            </span>
           </button>
         </nav>
         <div
@@ -615,7 +707,7 @@ export default function Home() {
             Lasting progress.
           </p>
           <span>
-            Just you, six strings,
+            {piano ? 'Just you, the keys,' : 'Just you, six strings,'}
             <br />
             and a little consistency.
           </span>
@@ -650,7 +742,7 @@ export default function Home() {
               '[&_strong]:font-medium [&_strong]:text-[#656c5a]',
             )}
           >
-            Your workspace <span>/</span>{' '}
+            {instrumentName} workspace <span>/</span>{' '}
             <strong>{view === 'practice' ? 'Practice deck' : 'Exercise library'}</strong>
           </div>
           <button
@@ -697,14 +789,14 @@ export default function Home() {
                   'narrow:text-[28px]',
                 )}
               >
-                {view === 'practice'
-                  ? 'A little practice. A lot of progress.'
-                  : 'Your practice library.'}
+                {instrumentName} {view === 'practice' ? 'practice deck' : 'exercise library'}
               </h1>
               <p>
                 {view === 'practice'
                   ? 'Two chords. One exercise. Make it musical.'
-                  : 'Sixteen ways to find something new in those six strings.'}
+                  : piano
+                    ? 'Block chord approaches. Make each change flow.'
+                    : 'Sixteen ways to find something new in those six strings.'}
               </p>
             </div>
             <div
@@ -770,7 +862,7 @@ export default function Home() {
                     )}
                   >
                     <h2>
-                      <Layers3 size={17} /> Your practice deck
+                      <Layers3 size={17} /> Your {instrumentName.toLowerCase()} practice deck
                     </h2>
                     <span>
                       2 chords <span className={cn('tiny-dot', 'px-1 py-0')}>+</span> 1 library
@@ -907,28 +999,34 @@ export default function Home() {
                               </p>
                             )}
                           </div>
-                          <div className={cn('card-position', 'mt-auto pt-1.25')}>
-                            <div
-                              className={cn(
-                                'mini-heading',
-                                'flex items-center justify-between gap-2',
-                                '[&>span:first-child]:text-[8px] [&>span:first-child]:font-[550] [&>span:first-child]:tracking-[1.2px] [&>span:first-child]:text-[#929780]',
-                                '[&>span:last-child]:shrink-0 [&>span:last-child]:rounded [&>span:last-child]:bg-[#e6eddb] [&>span:last-child]:px-2 [&>span:last-child]:py-1 [&>span:last-child]:text-[9px] [&>span:last-child]:font-semibold [&>span:last-child]:text-[#405b2a]',
-                                'compact:[&>span:last-child]:text-[7px]',
-                              )}
-                            >
-                              <span>YOUR PATCH OF THE FRETBOARD</span>
-                              <span>
-                                Strings {card.stringStart}–{card.stringEnd} selected
-                              </span>
-                            </div>
-                            <Fretboard
-                              start={card.fretStart}
-                              end={card.fretEnd}
-                              stringStart={card.stringStart}
-                              stringEnd={card.stringEnd}
-                            />
-                          </div>
+                          {!piano &&
+                            card.fretStart !== null &&
+                            card.fretEnd !== null &&
+                            card.stringStart !== null &&
+                            card.stringEnd !== null && (
+                              <div className={cn('card-position', 'mt-auto pt-1.25')}>
+                                <div
+                                  className={cn(
+                                    'mini-heading',
+                                    'flex items-center justify-between gap-2',
+                                    '[&>span:first-child]:text-[8px] [&>span:first-child]:font-[550] [&>span:first-child]:tracking-[1.2px] [&>span:first-child]:text-[#929780]',
+                                    '[&>span:last-child]:shrink-0 [&>span:last-child]:rounded [&>span:last-child]:bg-[#e6eddb] [&>span:last-child]:px-2 [&>span:last-child]:py-1 [&>span:last-child]:text-[9px] [&>span:last-child]:font-semibold [&>span:last-child]:text-[#405b2a]',
+                                    'compact:[&>span:last-child]:text-[7px]',
+                                  )}
+                                >
+                                  <span>YOUR PATCH OF THE FRETBOARD</span>
+                                  <span>
+                                    Strings {card.stringStart}–{card.stringEnd} selected
+                                  </span>
+                                </div>
+                                <Fretboard
+                                  start={card.fretStart}
+                                  end={card.fretEnd}
+                                  stringStart={card.stringStart}
+                                  stringEnd={card.stringEnd}
+                                />
+                              </div>
+                            )}
                           <div
                             className={cn(
                               'card-bottom',
@@ -940,25 +1038,30 @@ export default function Home() {
                               'wide:-mx-9.5 wide:my-0 wide:px-9.25',
                               'compact:-mx-5.25 compact:px-5',
                               'narrow:-mx-4.5 narrow:px-4.25',
+                              piano && 'mt-auto',
                             )}
                           >
                             <span>
                               <AudioLines size={16} />
                               <strong>{card.bpm}</strong> BPM
                             </span>
-                            <span className={'bottom-separator'} />
-                            <span>
-                              <SlidersHorizontal size={15} /> Frets{' '}
-                              <strong>
-                                {card.fretStart}–{card.fretEnd}
-                              </strong>
-                            </span>
-                            <span>
-                              <ListMusic size={15} /> Strings{' '}
-                              <strong>
-                                {card.stringStart}–{card.stringEnd}
-                              </strong>
-                            </span>
+                            {!piano && (
+                              <>
+                                <span className={'bottom-separator'} />
+                                <span>
+                                  <SlidersHorizontal size={15} /> Frets{' '}
+                                  <strong>
+                                    {card.fretStart}–{card.fretEnd}
+                                  </strong>
+                                </span>
+                                <span>
+                                  <ListMusic size={15} /> Strings{' '}
+                                  <strong>
+                                    {card.stringStart}–{card.stringEnd}
+                                  </strong>
+                                </span>
+                              </>
+                            )}
                           </div>
                         </>
                       ) : (
@@ -1077,7 +1180,7 @@ export default function Home() {
                         aria-describedby="song-chords"
                         className="mt-3.25 block w-full cursor-pointer rounded-[5px] border border-[#dce1cc] bg-[#f8f9f0] px-2.75 py-2.5 text-[11px] text-[#717e5e]"
                       >
-                        {SONGS.map((song) => (
+                        {songs.map((song) => (
                           <option key={song.id} value={song.id}>
                             {song.name}
                           </option>
@@ -1203,95 +1306,102 @@ export default function Home() {
                         {metronome.audioError}
                       </p>
                     )}
-                    <div
-                      className={cn(
-                        'panel-divider',
-                        'mx-0 mt-6 mb-5 border-t border-solid border-t-[#dfe3d0]',
-                        'wide:mx-0 wide:mt-7.25 wide:mb-6',
-                      )}
-                    />
-                    <div
-                      className={cn(
-                        'control-heading',
-                        'flex items-center justify-between text-[9px] tracking-[1.2px] text-[#899375]',
-                        '[&_label]:font-[550]',
-                        '[&>span]:text-[8px] [&>span]:tracking-[0.5px] [&>span]:text-[#a2aa90]',
-                      )}
-                    >
-                      <label htmlFor="fret-range">FRET RANGE</label>
-                      <span
-                        className={cn('five-frets', 'rounded-[3px] bg-[#e4e9d8] px-1.25 py-0.75')}
-                      >
-                        5 frets
-                      </span>
-                    </div>
-                    <div
-                      className={cn(
-                        'select-wrapper',
-                        'relative mt-3.25 flex h-9.75 items-center rounded-[5px] border border-solid border-[#dce1cc] bg-[#f8f9f0] text-[#93a078]',
-                        '[&>svg:first-child]:pointer-events-none [&>svg:first-child]:absolute [&>svg:first-child]:left-2.75',
-                        '[&>svg:last-child]:pointer-events-none [&>svg:last-child]:absolute [&>svg:last-child]:right-2.25',
-                        '[&_select]:relative [&_select]:w-full [&_select]:cursor-pointer [&_select]:appearance-none [&_select]:border-0 [&_select]:bg-transparent [&_select]:py-2.5 [&_select]:pr-6.5 [&_select]:pl-8.75 [&_select]:text-[10px] [&_select]:text-[#717e5e]',
-                      )}
-                    >
-                      <Shuffle size={15} />
-                      <select
-                        id="fret-range"
-                        disabled={loading}
-                        value={settings.fretMode}
-                        onChange={(event) => changeRange(event.target.value)}
-                      >
-                        <option value="random">Random position</option>
-                        {Array.from({ length: 8 }, (_, i) => (
-                          <option key={i + 1} value={i + 1}>
-                            Frets {i + 1}–{i + 5}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown size={14} />
-                    </div>
-                    <p
-                      className={cn(
-                        'range-caption',
-                        'mx-0 mt-2.5 mb-4.75 text-[9px] leading-[1.7] text-[#a0a78d]',
-                        'wide:mb-6.25',
-                        'narrow:text-[8px]',
-                      )}
-                    >
-                      {settings.fretMode === 'random'
-                        ? 'A fresh five-fret window on every card.'
-                        : 'One position. A whole world of possibilities.'}
-                    </p>
-                    <StringRange
-                      mode={settings.stringMode}
-                      disabled={loading}
-                      onChange={changeStringRange}
-                    />
-                    <div className="mb-5 border-t border-[#dfe3d0] pt-5">
-                      <label className="flex cursor-pointer items-center gap-2 text-[10px] text-[#717e5e]">
-                        <input
-                          type="checkbox"
-                          checked={settings.keepChords}
-                          disabled={loading}
-                          aria-describedby="keep-chords-description"
-                          onChange={(event) =>
-                            setSettings((previous) => ({
-                              ...previous,
-                              keepChords: event.target.checked,
-                            }))
-                          }
-                          className="h-3.5 w-3.5 shrink-0 accent-olive"
+                    {!piano && (
+                      <>
+                        <div
+                          className={cn(
+                            'panel-divider',
+                            'mx-0 mt-6 mb-5 border-t border-solid border-t-[#dfe3d0]',
+                            'wide:mx-0 wide:mt-7.25 wide:mb-6',
+                          )}
                         />
-                        Keep chords when shuffling
-                      </label>
-                      <p
-                        id="keep-chords-description"
-                        className="mt-2.5 mb-0 text-[9px] leading-[1.7] text-[#a0a78d]"
-                      >
-                        Only fret and string ranges change. Target notes and card order stay the
-                        same.
-                      </p>
-                    </div>
+                        <div
+                          className={cn(
+                            'control-heading',
+                            'flex items-center justify-between text-[9px] tracking-[1.2px] text-[#899375]',
+                            '[&_label]:font-[550]',
+                            '[&>span]:text-[8px] [&>span]:tracking-[0.5px] [&>span]:text-[#a2aa90]',
+                          )}
+                        >
+                          <label htmlFor="fret-range">FRET RANGE</label>
+                          <span
+                            className={cn(
+                              'five-frets',
+                              'rounded-[3px] bg-[#e4e9d8] px-1.25 py-0.75',
+                            )}
+                          >
+                            5 frets
+                          </span>
+                        </div>
+                        <div
+                          className={cn(
+                            'select-wrapper',
+                            'relative mt-3.25 flex h-9.75 items-center rounded-[5px] border border-solid border-[#dce1cc] bg-[#f8f9f0] text-[#93a078]',
+                            '[&>svg:first-child]:pointer-events-none [&>svg:first-child]:absolute [&>svg:first-child]:left-2.75',
+                            '[&>svg:last-child]:pointer-events-none [&>svg:last-child]:absolute [&>svg:last-child]:right-2.25',
+                            '[&_select]:relative [&_select]:w-full [&_select]:cursor-pointer [&_select]:appearance-none [&_select]:border-0 [&_select]:bg-transparent [&_select]:py-2.5 [&_select]:pr-6.5 [&_select]:pl-8.75 [&_select]:text-[10px] [&_select]:text-[#717e5e]',
+                          )}
+                        >
+                          <Shuffle size={15} />
+                          <select
+                            id="fret-range"
+                            disabled={loading}
+                            value={settings.fretMode}
+                            onChange={(event) => changeRange(event.target.value)}
+                          >
+                            <option value="random">Random position</option>
+                            {Array.from({ length: 8 }, (_, i) => (
+                              <option key={i + 1} value={i + 1}>
+                                Frets {i + 1}–{i + 5}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown size={14} />
+                        </div>
+                        <p
+                          className={cn(
+                            'range-caption',
+                            'mx-0 mt-2.5 mb-4.75 text-[9px] leading-[1.7] text-[#a0a78d]',
+                            'wide:mb-6.25',
+                            'narrow:text-[8px]',
+                          )}
+                        >
+                          {settings.fretMode === 'random'
+                            ? 'A fresh five-fret window on every card.'
+                            : 'One position. A whole world of possibilities.'}
+                        </p>
+                        <StringRange
+                          mode={settings.stringMode}
+                          disabled={loading}
+                          onChange={changeStringRange}
+                        />
+                        <div className="mb-5 border-t border-[#dfe3d0] pt-5">
+                          <label className="flex cursor-pointer items-center gap-2 text-[10px] text-[#717e5e]">
+                            <input
+                              type="checkbox"
+                              checked={settings.keepChords}
+                              disabled={loading}
+                              aria-describedby="keep-chords-description"
+                              onChange={(event) =>
+                                setSettings((previous) => ({
+                                  ...previous,
+                                  keepChords: event.target.checked,
+                                }))
+                              }
+                              className="h-3.5 w-3.5 shrink-0 accent-olive"
+                            />
+                            Keep chords when shuffling
+                          </label>
+                          <p
+                            id="keep-chords-description"
+                            className="mt-2.5 mb-0 text-[9px] leading-[1.7] text-[#a0a78d]"
+                          >
+                            Only fret and string ranges change. Target notes and card order stay the
+                            same.
+                          </p>
+                        </div>
+                      </>
+                    )}
                     <div
                       className={cn(
                         'settings-footnote',
@@ -1357,7 +1467,9 @@ export default function Home() {
                   <p>
                     {cards.length
                       ? cards[(index + 1) % cards.length].exercise.title
-                      : 'Sixteen exercises. A new perspective.'}
+                      : piano
+                        ? 'Block Chords: Approach'
+                        : 'Sixteen exercises. A new perspective.'}
                   </p>
                 </div>
                 <button onClick={() => setView('library')}>
@@ -1376,7 +1488,7 @@ export default function Home() {
                 )}
               >
                 <h2>
-                  All exercises <span>16</span>
+                  All exercises <span>{cards.length}</span>
                 </h2>
                 <label
                   className={cn(
@@ -1424,6 +1536,7 @@ export default function Home() {
                         setIndex(
                           cards.findIndex((entry) => entry.exercise.id === item.exercise.id),
                         );
+                        setActiveChord(0);
                         setView('practice');
                       }}
                     >
@@ -1453,12 +1566,16 @@ export default function Home() {
                         )}
                       >
                         <span>{item.bpm} BPM</span>
-                        <span>
-                          Frets {item.fretStart}–{item.fretEnd}
-                        </span>
-                        <span>
-                          Strings {item.stringStart}–{item.stringEnd}
-                        </span>
+                        {!piano && (
+                          <>
+                            <span>
+                              Frets {item.fretStart}–{item.fretEnd}
+                            </span>
+                            <span>
+                              Strings {item.stringStart}–{item.stringEnd}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </button>
                   ))}
@@ -1504,7 +1621,7 @@ export default function Home() {
           >
             <span>Less overthinking. More playing.</span>
             <span>
-              GUITAR PRACTICE{' '}
+              {instrumentName.toUpperCase()} PRACTICE{' '}
               <span className={cn('footer-dot', 'text-[16px] text-[#9ba886]')}>✳</span>
             </span>
           </footer>
@@ -1555,40 +1672,63 @@ export default function Home() {
             YOUR DAILY PRACTICE, SIMPLIFIED
           </div>
           <h2>Pick up. Shuffle. Play.</h2>
-          <p>
-            Choose a song in Practice settings to set the available chords. All Blues uses G7, C7,
-            Dalt, and D#alt; Billie’s Bounce, Hornful Soul, and Bag’s Groove share the original
-            chord set. Changing songs builds a new deck, even when “Keep chords when shuffling” is
-            enabled.
-          </p>
-          <p>
-            Each card combines two distinct chords with one exercise from your library. Shuffle to
-            refresh the chord pairings, target notes, exercise order, and random fret and string
-            positions. Enable “Keep chords when shuffling” to change only the fret and string
-            ranges, keeping your chords, target notes, card order, and current card.
-          </p>
+          {piano ? (
+            <p>
+              Your piano library contains Block Chords: Approach. Practice Bag’s Groove with G7, C7,
+              C#dim, B7, E7, Aalt, and D7. Shuffle Deck selects one of its nine allowed two-chord
+              changes and refreshes the target notes. Guitar and piano settings are saved
+              separately.
+            </p>
+          ) : (
+            <>
+              <p>
+                Choose a song in Practice settings to set the available chords. All Blues uses G7,
+                C7, Dalt, and D#alt; Billie’s Bounce, Hornful Soul, and Bag’s Groove share the
+                original chord set. Changing songs builds a new deck, even when “Keep chords when
+                shuffling” is enabled.
+              </p>
+              <p>
+                Each card combines two distinct chords with one exercise from your library. Shuffle
+                to refresh the chord pairings, target notes, exercise order, and random fret and
+                string positions. Enable “Keep chords when shuffling” to change only the fret and
+                string ranges, keeping your chords, target notes, card order, and current card.
+              </p>
+            </>
+          )}
           <ol>
             <li>
               <strong>Set your pace.</strong> Tempo starts at 100 BPM. Type a value from 20–300 or
               use the ± buttons. The optional metronome gives you an audible four-beat pulse.
             </li>
-            <li>
-              <strong>Find your position.</strong> Every range contains exactly five frets, within
-              frets 1–12. Choose random or lock in a position for the whole deck. Select three
-              consecutive strings: 1–3, 2–4, 3–5, or 4–6. Shuffle Deck always switches both ranges
-              to Random position and picks fresh fret and string windows for every card.
-            </li>
+            {!piano && (
+              <li>
+                <strong>Find your position.</strong> Every range contains exactly five frets, within
+                frets 1–12. Choose random or lock in a position for the whole deck. Select three
+                consecutive strings: 1–3, 2–4, 3–5, or 4–6. Shuffle Deck always switches both ranges
+                to Random position and picks fresh fret and string windows for every card.
+              </li>
+            )}
             <li>
               <strong>Follow the card.</strong> Apply the library exercise to the two chords shown.
               Click either chord to focus on it and choose a chord tone from its Target note
-              selector. Each card remembers your choices while you browse; shuffling randomizes both
-              targets unless “Keep chords when shuffling” is enabled. Scale exercises also receive a
-              chord pair. The small numbers preserve the original annotations; a dash means none was
-              supplied.
+              selector.{' '}
+              {piano ? (
+                'Play the block chords, sounding each chord’s notes together.'
+              ) : (
+                <>
+                  Each card remembers your choices while you browse; shuffling randomizes both
+                  targets unless “Keep chords when shuffling” is enabled. Scale exercises also
+                  receive a chord pair. The small numbers preserve the original annotations; a dash
+                  means none was supplied.
+                </>
+              )}
             </li>
             <li>
               <strong>Keep moving.</strong> Use the arrows to browse at your own pace, or shuffle
-              for a fresh combination. Tempo and range preferences stay saved in this browser.
+              for a fresh combination.{' '}
+              {piano
+                ? 'Your piano tempo stays saved in this browser.'
+                : 'Tempo and range preferences stay saved in this browser.'}
             </li>
           </ol>
           <button

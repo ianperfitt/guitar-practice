@@ -44,7 +44,7 @@ test('real API deck pairs two chords with a library exercise and preserves contr
   await expect(page.locator('.chord-pair .chord > span')).toHaveText(['F7alt', 'B♭7']);
   await expect(page.locator('.chord-pair .chord')).toHaveCount(2);
   await expect(page.locator('.chord-pair .chord').first()).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('button', { name: /Exercise library/ }).click();
+  await page.getByRole('button', { name: /Guitar exercise library/ }).click();
   await expect(page.locator('.library-card')).toHaveCount(16);
   const titles = await page.locator('.library-card h3').allTextContents();
   await page.getByLabel('Search exercises').fill('HWHT');
@@ -63,7 +63,7 @@ test('real API deck pairs two chords with a library exercise and preserves contr
   await expect(page.locator('.card-bottom')).toContainText('137');
   await expect(page.getByLabel('FRET RANGE', { exact: true })).toHaveValue('random');
   await expect(page.getByLabel('STRING RANGE', { exact: true })).toHaveValue('random');
-  await page.getByRole('button', { name: /Exercise library/ }).click();
+  await page.getByRole('button', { name: /Guitar exercise library/ }).click();
   await page.getByLabel('Search exercises').fill('');
   await expect(page.locator('.library-card')).toHaveCount(16);
   expect((await page.locator('.library-card h3').allTextContents()).sort()).toEqual(titles.sort());
@@ -96,7 +96,7 @@ test('selected chords retain exercise-specific notes and empty annotations', asy
   });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Up & Down Scale', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Exercise library', exact: true }).click();
+  await page.getByRole('button', { name: 'Guitar exercise library', exact: true }).click();
   await page.getByLabel('Search exercises').fill('HWHT');
   await page.locator('.library-card').click();
   await expect(page.locator('.chord-pair .chord')).toHaveCount(2);
@@ -206,11 +206,11 @@ test('fixed string ranges persist across the deck and reload until the deck is s
   }
   await page.getByRole('button', { name: 'Next card', exact: true }).click();
   await expect(page.locator('.card-bottom')).toContainText('Strings 4–6');
-  await page.getByRole('button', { name: 'Exercise library', exact: true }).click();
+  await page.getByRole('button', { name: 'Guitar exercise library', exact: true }).click();
   for (const card of await page.locator('.library-card').all()) {
     await expect(card).toContainText('Strings 4–6');
   }
-  await page.getByRole('button', { name: 'Practice deck', exact: true }).click();
+  await page.getByRole('button', { name: 'Guitar practice deck', exact: true }).click();
   await page.reload();
   await expect(strings).toHaveValue('4');
   await expect(page.locator('.card-bottom')).toContainText('Strings 4–6');

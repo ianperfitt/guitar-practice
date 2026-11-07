@@ -193,4 +193,64 @@ class PracticeServiceTest {
         }
         assertThat(sampledPairs).containsExactlyInAnyOrderElementsOf(allowedPairs);
     }
+
+    @Test void pianoHasItsOwnSingleExerciseAndSevenChords() {
+        var catalog = service.exercises("piano");
+        assertThat(catalog).hasSize(1);
+        assertThat(catalog.getFirst().id()).isEqualTo("block-chords-ascending");
+        assertThat(catalog.getFirst().title()).isEqualTo("Block Chords: Approach");
+        assertThat(catalog.getFirst().chords().stream().map(PracticeService.Chord::name))
+            .containsExactly("G7", "C7", "C#dim", "B7", "E7", "Aalt", "D7");
+        var expectedNotes = Map.of(
+            "G7", List.of("G", "B", "D", "F"),
+            "C7", List.of("C", "E", "G", "B♭"),
+            "C#dim", List.of("C♯", "E", "G"),
+            "B7", List.of("B", "D♯", "F♯", "A"),
+            "E7", List.of("E", "G♯", "B", "D"),
+            "Aalt", List.of("A", "C♯", "E♭", "E♯", "G"),
+            "D7", List.of("D", "F♯", "A", "C")
+        );
+        assertThat(catalog.getFirst().chords()).allSatisfy(chord ->
+            assertThat(chord.targetNoteOptions().stream().map(PracticeService.TargetNote::name))
+                .containsExactlyElementsOf(expectedNotes.get(chord.name())));
+        assertThat(service.exercises("guitar")).isEqualTo(service.exercises()).hasSize(16);
+        assertThatThrownBy(() -> service.exercises("unknown")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test void pianoDeckUsesOnlyTheNineBagsGroovePairsAndNoGuitarRanges() {
+        var allowedPairs = List.of(
+            List.of("G7", "C7"), List.of("C7", "G7"), List.of("C7", "C#dim"),
+            List.of("G7", "B7"), List.of("B7", "E7"), List.of("E7", "Aalt"),
+            List.of("Aalt", "D7"), List.of("D7", "G7"), List.of("G7", "D7")
+        );
+        var initial = service.deck(100, null, null, false, null, "piano");
+        assertThat(initial).hasSize(1);
+        assertThat(initial.getFirst().chords().stream().map(PracticeService.Chord::name))
+            .containsExactly("G7", "C7");
+        assertThat(initial.getFirst().targetNotes()).containsExactly("G", "C");
+        var sampledPairs = new HashSet<List<String>>();
+        for (int i = 0; i < 300; i++) {
+            var deck = service.deck(125, null, null, true, "bags-groove", "piano");
+            assertThat(deck).hasSize(1);
+            var card = deck.getFirst();
+            assertThat(card.exercise()).isEqualTo(service.exercises("piano").getFirst());
+            var pair = card.chords().stream().map(PracticeService.Chord::name).toList();
+            assertThat(allowedPairs).contains(pair);
+            sampledPairs.add(pair);
+            assertThat(card.bpm()).isEqualTo(125);
+            assertThat(card.fretStart()).isNull();
+            assertThat(card.fretEnd()).isNull();
+            assertThat(card.stringStart()).isNull();
+            assertThat(card.stringEnd()).isNull();
+            for (int chordIndex = 0; chordIndex < 2; chordIndex++) {
+                assertThat(card.chords().get(chordIndex).targetNoteOptions().stream()
+                    .map(PracticeService.TargetNote::name)).contains(card.targetNotes().get(chordIndex));
+            }
+        }
+        assertThat(sampledPairs).containsExactlyInAnyOrderElementsOf(allowedPairs);
+        assertThatThrownBy(() -> service.deck(100, null, null, false, "all-blues", "piano"))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.deck(100, null, null, false, null, "unknown"))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
 }

@@ -84,4 +84,26 @@ class PracticeApiTest {
         }
         assertThat(deck.get(0).get("chords").get(0).get("name").asText()).isEqualTo("G7");
     }
+
+    @Test void pianoRequestsReturnOnlyThePianoLibraryAndDeck() throws Exception {
+        var response = client.send(HttpRequest.newBuilder(
+            URI.create("http://localhost:" + port + "/api/exercises?instrument=piano"))
+            .GET().build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(200);
+        var catalog = JsonMapper.builder().build().readTree(response.body());
+        assertThat(catalog.size()).isEqualTo(1);
+        assertThat(catalog.get(0).get("title").asText()).isEqualTo("Block Chords: Approach");
+        var deckResponse = post("{\"instrument\":\"piano\",\"shuffle\":false,\"bpm\":125}");
+        assertThat(deckResponse.statusCode()).isEqualTo(200);
+        var deck = JsonMapper.builder().build().readTree(deckResponse.body());
+        assertThat(deck.size()).isEqualTo(1);
+        assertThat(deck.get(0).get("exercise")).isEqualTo(catalog.get(0));
+        assertThat(deck.get(0).get("bpm").asInt()).isEqualTo(125);
+        assertThat(deck.get(0).get("chords").get(0).get("name").asText()).isEqualTo("G7");
+        assertThat(deck.get(0).get("chords").get(1).get("name").asText()).isEqualTo("C7");
+        assertThat(deck.get(0).get("fretStart").isNull()).isTrue();
+        assertThat(deck.get(0).get("stringStart").isNull()).isTrue();
+        assertThat(post("{\"instrument\":\"piano\",\"songId\":\"all-blues\"}").statusCode()).isEqualTo(400);
+        assertThat(post("{\"instrument\":\"unknown\"}").statusCode()).isEqualTo(400);
+    }
 }

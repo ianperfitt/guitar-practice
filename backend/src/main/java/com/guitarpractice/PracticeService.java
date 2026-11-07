@@ -14,7 +14,7 @@ public class PracticeService {
                         List<TargetNote> targetNoteOptions) {}
     public record Exercise(String id, String title, String category, String guidance, List<Chord> chords) {}
     public record Card(Exercise exercise, List<Chord> chords, List<String> targetNotes,
-                       int bpm, int fretStart, int fretEnd, int stringStart, int stringEnd) {}
+                       int bpm, Integer fretStart, Integer fretEnd, Integer stringStart, Integer stringEnd) {}
 
     private static final List<List<String>> CHORD_PAIRS = List.of(
         List.of("F7", "B♭7"),
@@ -34,6 +34,25 @@ public class PracticeService {
         List.of("G7", "Dalt"),
         List.of("Dalt", "D#alt"),
         List.of("D#alt", "G7")
+    );
+
+    private static final List<List<String>> PIANO_BAGS_GROOVE_PAIRS = List.of(
+        List.of("G7", "C7"),
+        List.of("C7", "G7"),
+        List.of("C7", "C#dim"),
+        List.of("G7", "B7"),
+        List.of("B7", "E7"),
+        List.of("E7", "Aalt"),
+        List.of("Aalt", "D7"),
+        List.of("D7", "G7"),
+        List.of("G7", "D7")
+    );
+
+    private static final List<Exercise> PIANO_EXERCISES = List.of(
+        new Exercise("block-chords-ascending", "Block Chords: Approach", "Chords",
+            "Practice block chords through each change. Sound the notes together and connect each chord change smoothly.",
+            List.of("G7", "C7", "C#dim", "B7", "E7", "Aalt", "D7").stream()
+                .map(name -> chord(name, "", "", false)).toList())
     );
 
     private static final List<Exercise> EXERCISES = List.of(
@@ -82,6 +101,10 @@ public class PracticeService {
             case "C7" -> List.of(target("C", "1"), target("E", "3"), target("G", "5"), target("B♭", "♭7"));
             case "C7alt" -> List.of(target("C", "1"), target("E", "3"), target("G♭", "♭5"), target("G♯", "♯5"), target("B♭", "♭7"));
             case "G7" -> List.of(target("G", "1"), target("B", "3"), target("D", "5"), target("F", "♭7"));
+            case "C#dim" -> List.of(target("C♯", "1"), target("E", "♭3"), target("G", "♭5"));
+            case "B7" -> List.of(target("B", "1"), target("D♯", "3"), target("F♯", "5"), target("A", "♭7"));
+            case "E7" -> List.of(target("E", "1"), target("G♯", "3"), target("B", "5"), target("D", "♭7"));
+            case "Aalt" -> List.of(target("A", "1"), target("C♯", "3"), target("E♭", "♭5"), target("E♯", "♯5"), target("G", "♭7"));
             case "Dalt" -> List.of(target("D", "1"), target("F♯", "3"), target("A♭", "♭5"), target("A♯", "♯5"), target("C", "♭7"));
             case "D#alt" -> List.of(target("D♯", "1"), target("F𝄪", "3"), target("A", "♭5"), target("B", "♯5"), target("C♯", "♭7"));
             default -> throw new IllegalArgumentException("Unknown chord: " + name);
@@ -93,12 +116,31 @@ public class PracticeService {
 
     public List<Exercise> exercises() { return EXERCISES; }
 
+    public List<Exercise> exercises(String instrument) {
+        return switch (instrument == null ? "guitar" : instrument) {
+            case "guitar" -> EXERCISES;
+            case "piano" -> PIANO_EXERCISES;
+            default -> throw new IllegalArgumentException("Unknown instrument: " + instrument);
+        };
+    }
+
     public List<Card> deck(int bpm, Integer fretStart, Integer stringStart, boolean shuffle) {
         return deck(bpm, fretStart, stringStart, shuffle, null);
     }
 
     public List<Card> deck(int bpm, Integer fretStart, Integer stringStart, boolean shuffle, String songId) {
-        var pairs = switch (songId == null ? "billies-bounce" : songId) {
+        return deck(bpm, fretStart, stringStart, shuffle, songId, null);
+    }
+
+    public List<Card> deck(int bpm, Integer fretStart, Integer stringStart, boolean shuffle,
+                           String songId, String instrument) {
+        var catalog = exercises(instrument);
+        boolean piano = "piano".equals(instrument);
+        var selectedSong = songId == null ? (piano ? "bags-groove" : "billies-bounce") : songId;
+        if (piano && !selectedSong.equals("bags-groove")) {
+            throw new IllegalArgumentException("Unknown piano song: " + selectedSong);
+        }
+        var pairs = piano ? PIANO_BAGS_GROOVE_PAIRS : switch (selectedSong) {
             case "billies-bounce", "hornful-soul", "bags-groove" -> CHORD_PAIRS;
             case "all-blues" -> ALL_BLUES_PAIRS;
             default -> throw new IllegalArgumentException("Unknown song: " + songId);
@@ -110,7 +152,7 @@ public class PracticeService {
         if (stringStart != null && (stringStart < 1 || stringStart > 4)) {
             throw new IllegalArgumentException("Start string must be between 1 and 4.");
         }
-        List<Exercise> order = new ArrayList<>(EXERCISES);
+        List<Exercise> order = new ArrayList<>(catalog);
         if (shuffle) Collections.shuffle(order);
         return IntStream.range(0, order.size()).mapToObj(index -> {
             var exercise = order.get(index);
@@ -125,6 +167,7 @@ public class PracticeService {
                 var options = chord.targetNoteOptions();
                 return options.get(shuffle ? ThreadLocalRandom.current().nextInt(options.size()) : 0).name();
             }).toList();
+            if (piano) return new Card(exercise, chords, targets, bpm, null, null, null, null);
             int start = fretStart == null ? ThreadLocalRandom.current().nextInt(1, 9) : fretStart;
             int firstString = stringStart == null ? ThreadLocalRandom.current().nextInt(1, 5) : stringStart;
             return new Card(exercise, chords, targets, bpm, start, start + 4, firstString, firstString + 2);

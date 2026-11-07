@@ -1,4 +1,5 @@
 export type TargetNote = { name: string; degree: string };
+export type Instrument = 'guitar' | 'piano';
 
 export const SONGS = [
   {
@@ -21,6 +22,18 @@ export const SONGS = [
 
 export type SongId = (typeof SONGS)[number]['id'];
 
+export const PIANO_SONGS = [
+  {
+    id: 'bags-groove',
+    name: "Bag's Groove",
+    chords: ['G7', 'C7', 'C#dim', 'B7', 'E7', 'Aalt', 'D7'],
+  },
+] as const;
+
+export function songsFor(instrument: Instrument) {
+  return instrument === 'piano' ? PIANO_SONGS : SONGS;
+}
+
 export type Chord = {
   name: string;
   annotation: string;
@@ -42,8 +55,8 @@ export type Card = {
   chords: Chord[];
   targetNotes: string[];
   bpm: number;
-  fretStart: number;
-  fretEnd: number;
-  stringStart: number;
-  stringEnd: number;
+  fretStart: number | null;
+  fretEnd: number | null;
+  stringStart: number | null;
+  stringEnd: number | null;
 };
