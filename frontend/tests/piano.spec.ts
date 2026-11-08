@@ -107,7 +107,7 @@ test('switching instruments preserves each shuffled deck and current selections 
   expect(guitarMatches.length).toBeGreaterThan(1);
   await instrument.selectOption('piano');
   await page.getByRole('button', { name: 'Piano exercise library', exact: true }).click();
-  await expect(page.locator('.library-card h3')).toHaveText('Block Chords: Approach');
+  await expect(page.locator('.library-card h3')).toHaveText('Block Chords: Approach From Below');
   await expect(page.getByLabel('Search exercises')).toHaveValue('');
   await instrument.selectOption('guitar');
   await expect(page.getByLabel('Search exercises')).toHaveValue('triad');
@@ -132,7 +132,7 @@ test('piano has its own deck, library, song, and saved preferences', async ({ pa
 
   await instrument.selectOption('piano');
   await expect(
-    page.getByRole('heading', { name: 'Block Chords: Approach', exact: true }),
+    page.getByRole('heading', { name: 'Block Chords: Approach From Below', exact: true }),
   ).toBeVisible();
   await expect(tempo).toHaveValue('100');
   await expect(song.locator('option')).toHaveText(["Bag's Groove"]);
@@ -155,7 +155,7 @@ test('piano has its own deck, library, song, and saved preferences', async ({ pa
 
   await page.getByRole('button', { name: 'Piano exercise library', exact: true }).click();
   await expect(page.locator('.library-card')).toHaveCount(1);
-  await expect(page.locator('.library-card h3')).toHaveText('Block Chords: Approach');
+  await expect(page.locator('.library-card h3')).toHaveText('Block Chords: Approach From Below');
   await expect(page.locator('.library-card-bottom')).not.toContainText('Frets');
   await page.getByLabel('Search exercises').fill('triad');
   await expect(page.locator('.library-card')).toHaveCount(0);

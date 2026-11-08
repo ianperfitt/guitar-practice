@@ -1516,7 +1516,7 @@ function PracticeWorkspace({
                     {cards.length
                       ? cards[(index + 1) % cards.length].exercise.title
                       : piano
-                        ? 'Block Chords: Approach'
+                        ? 'Block Chords: Approach From Below'
                         : 'Sixteen exercises. A new perspective.'}
                   </p>
                 </div>

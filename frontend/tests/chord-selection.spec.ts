@@ -142,7 +142,7 @@ test('piano selects all nine allowed changes and keeps selections separate from 
   const deck: Card[] = await response.json();
   await expect(pair).toHaveValue(deck[0].chords.map((chord) => chord.name).join('|'));
   await expect(
-    page.getByRole('heading', { name: 'Block Chords: Approach', exact: true }),
+    page.getByRole('heading', { name: 'Block Chords: Approach From Below', exact: true }),
   ).toBeVisible();
   await page.screenshot({ path: '../.playwright/piano-chord-selection.png', fullPage: true });
 });

@@ -46,7 +46,7 @@ Switching instruments resumes that instrument's current deck, including shuffled
 
 Use the **Your Two Chords** dropdown on either instrument's practice card to select an allowed ordered change from the current song. Selection updates only that card, keeping its exercise, tempo, ranges, and valid target notes for any retained chords; newly introduced chords start on their roots. Navigation and instrument switching keep your selection. **Shuffle Deck** continues to sample fresh pairs; guitar's **Keep chords when shuffling** also preserves manually selected pairs.
 
-Piano contains exactly one exercise card: **Block Chords: Approach**. Its only song is **Bag's Groove**, using **G7, C7, C#dim, B7, E7, Aalt, D7**. Each card shows two chords; Shuffle Deck samples only these nine ordered changes:
+Piano contains exactly one exercise card: **Block Chords: Approach From Below**. Its only song is **Bag's Groove**, using **G7, C7, C#dim, B7, E7, Aalt, D7**. Each card shows two chords; Shuffle Deck samples only these nine ordered changes:
 
 - G7 → C7
 - C7 → G7

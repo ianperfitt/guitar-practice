@@ -9,13 +9,13 @@ import static org.assertj.core.api.Assertions.*;
 class PracticeServiceTest {
     private final PracticeService service = new PracticeService();
     private static final List<List<String>> ALLOWED_PAIRS = List.of(
-        List.of("F7", "B♭7"), List.of("F7alt", "B♭7"),
-        List.of("B♭7", "F7"), List.of("B°", "F7"),
-        List.of("F7", "D7"), List.of("D7", "C7"),
-        List.of("C7", "F7"), List.of("C7alt", "F7")
-    );
+            List.of("F7", "B♭7"), List.of("F7alt", "B♭7"),
+            List.of("B♭7", "F7"), List.of("B°", "F7"),
+            List.of("F7", "D7"), List.of("D7", "C7"),
+            List.of("C7", "F7"), List.of("C7alt", "F7"));
 
-    @Test void catalogPreservesAllSixteenExercisesAndAnnotations() {
+    @Test
+    void catalogPreservesAllSixteenExercisesAndAnnotations() {
         assertThat(service.exercises()).hasSize(16);
         assertThat(service.exercises().stream().map(PracticeService.Exercise::id)).doesNotHaveDuplicates();
         assertThat(service.exercises().getFirst().chords()).isEmpty();
@@ -26,21 +26,24 @@ class PracticeServiceTest {
         assertThat(service.exercises().get(6).chords().get(3).annotation()).isEmpty();
     }
 
-    @Test void randomDecksUseOnlyAllowedOrderedPairsWithEveryLibraryExercise() {
+    @Test
+    void randomDecksUseOnlyAllowedOrderedPairsWithEveryLibraryExercise() {
         var sampledF7Targets = new HashSet<String>();
         for (int i = 0; i < 100; i++) {
             var deck = service.deck(100, null, 1, true);
             assertThat(deck).hasSize(16);
-            assertThat(deck.stream().map(PracticeService.Card::exercise)).containsExactlyInAnyOrderElementsOf(service.exercises());
+            assertThat(deck.stream().map(PracticeService.Card::exercise))
+                    .containsExactlyInAnyOrderElementsOf(service.exercises());
             assertThat(deck).allSatisfy(card -> {
                 assertThat(card.chords()).hasSize(2);
                 var pair = card.chords().stream().map(PracticeService.Chord::name).toList();
                 assertThat(ALLOWED_PAIRS).contains(pair);
                 assertThat(card.chordPairOptions().stream()
-                    .map(option -> option.stream().map(PracticeService.Chord::name).toList()))
-                    .containsExactlyElementsOf(ALLOWED_PAIRS);
+                        .map(option -> option.stream().map(PracticeService.Chord::name).toList()))
+                        .containsExactlyElementsOf(ALLOWED_PAIRS);
                 assertThat(card.chordPairOptions()).contains(card.chords());
-                var pool = card.exercise().chords().isEmpty() ? service.exercises().get(2).chords() : card.exercise().chords();
+                var pool = card.exercise().chords().isEmpty() ? service.exercises().get(2).chords()
+                        : card.exercise().chords();
                 assertThat(card.chordPairOptions()).allSatisfy(option -> assertThat(option).isSubsetOf(pool));
                 assertThat(card.chords()).isSubsetOf(pool);
                 assertThat(card.targetNotes()).hasSize(2);
@@ -48,8 +51,9 @@ class PracticeServiceTest {
                     var chord = card.chords().get(chordIndex);
                     var target = card.targetNotes().get(chordIndex);
                     assertThat(chord.targetNoteOptions().stream().map(PracticeService.TargetNote::name))
-                        .contains(target);
-                    if (chord.name().equals("F7")) sampledF7Targets.add(target);
+                            .contains(target);
+                    if (chord.name().equals("F7"))
+                        sampledF7Targets.add(target);
                 }
                 assertThat(card.bpm()).isEqualTo(100);
                 assertThat(card.fretStart()).isBetween(1, 8);
@@ -60,37 +64,39 @@ class PracticeServiceTest {
         assertThat(sampledF7Targets).containsExactlyInAnyOrder("F", "A", "C", "E♭");
     }
 
-    @Test void targetNoteOptionsMatchChordTonesIncludingAlteredAndDiminishedFifths() {
+    @Test
+    void targetNoteOptionsMatchChordTonesIncludingAlteredAndDiminishedFifths() {
         var expected = Map.of(
-            "F7", List.of("F", "A", "C", "E♭"),
-            "F7alt", List.of("F", "A", "C♭", "C♯", "E♭"),
-            "B♭7", List.of("B♭", "D", "F", "A♭"),
-            "B°", List.of("B", "D", "F"),
-            "D7", List.of("D", "F♯", "A", "C"),
-            "C7", List.of("C", "E", "G", "B♭"),
-            "C7alt", List.of("C", "E", "G♭", "G♯", "B♭")
-        );
+                "F7", List.of("F", "A", "C", "E♭"),
+                "F7alt", List.of("F", "A", "C♭", "C♯", "E♭"),
+                "B♭7", List.of("B♭", "D", "F", "A♭"),
+                "B°", List.of("B", "D", "F"),
+                "D7", List.of("D", "F♯", "A", "C"),
+                "C7", List.of("C", "E", "G", "B♭"),
+                "C7alt", List.of("C", "E", "G♭", "G♯", "B♭"));
         assertThat(service.exercises().get(2).chords()).allSatisfy(chord -> {
             assertThat(chord.targetNoteOptions().stream().map(PracticeService.TargetNote::name))
-                .containsExactlyElementsOf(expected.get(chord.name()));
+                    .containsExactlyElementsOf(expected.get(chord.name()));
             assertThat(chord.targetNoteOptions()).allSatisfy(note -> assertThat(note.degree()).isNotBlank());
         });
     }
 
-    @Test void unshuffledDeckKeepsLibraryOrderAndCyclesThroughAllEightPairsInOrder() {
+    @Test
+    void unshuffledDeckKeepsLibraryOrderAndCyclesThroughAllEightPairsInOrder() {
         var deck = service.deck(100, 1, 1, false);
         assertThat(deck.stream().map(PracticeService.Card::exercise)).containsExactlyElementsOf(service.exercises());
         for (int i = 0; i < deck.size(); i++) {
             assertThat(deck.get(i).chords().stream().map(PracticeService.Chord::name))
-                .containsExactlyElementsOf(ALLOWED_PAIRS.get(i % ALLOWED_PAIRS.size()));
+                    .containsExactlyElementsOf(ALLOWED_PAIRS.get(i % ALLOWED_PAIRS.size()));
             for (int chordIndex = 0; chordIndex < 2; chordIndex++) {
                 assertThat(deck.get(i).targetNotes().get(chordIndex))
-                    .isEqualTo(deck.get(i).chords().get(chordIndex).targetNoteOptions().getFirst().name());
+                        .isEqualTo(deck.get(i).chords().get(chordIndex).targetNoteOptions().getFirst().name());
             }
         }
     }
 
-    @Test void fixedRangeAndTempoApplyToAllCards() {
+    @Test
+    void fixedRangeAndTempoApplyToAllCards() {
         assertThat(service.deck(140, 8, 4, false)).allSatisfy(card -> {
             assertThat(card.bpm()).isEqualTo(140);
             assertThat(card.fretStart()).isEqualTo(8);
@@ -100,7 +106,8 @@ class PracticeServiceTest {
         });
     }
 
-    @Test void stringRangesAlwaysHaveThreeConsecutiveStringsAndSurviveShuffling() {
+    @Test
+    void stringRangesAlwaysHaveThreeConsecutiveStringsAndSurviveShuffling() {
         for (int start = 1; start <= 4; start++) {
             int expectedStart = start;
             for (boolean shuffle : List.of(false, true)) {
@@ -112,7 +119,8 @@ class PracticeServiceTest {
         }
     }
 
-    @Test void randomStringRangesSampleAllFourWindowsWithOrWithoutShuffling() {
+    @Test
+    void randomStringRangesSampleAllFourWindowsWithOrWithoutShuffling() {
         for (boolean shuffle : List.of(false, true)) {
             var sampledStarts = new HashSet<Integer>();
             for (int i = 0; i < 100; i++) {
@@ -127,7 +135,8 @@ class PracticeServiceTest {
         }
     }
 
-    @Test void invalidRangesAndTemposAreRejected() {
+    @Test
+    void invalidRangesAndTemposAreRejected() {
         assertThatThrownBy(() -> service.deck(0, 1, 1, true)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.deck(100, 9, 1, true)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.deck(100, 0, 1, true)).isInstanceOf(IllegalArgumentException.class);
@@ -135,35 +144,36 @@ class PracticeServiceTest {
         assertThatThrownBy(() -> service.deck(100, 1, 5, true)).isInstanceOf(IllegalArgumentException.class);
     }
 
-    @Test void originalSongsKeepTheExistingOrderedPairs() {
+    @Test
+    void originalSongsKeepTheExistingOrderedPairs() {
         for (var song : List.of("billies-bounce", "hornful-soul", "bags-groove")) {
             var deck = service.deck(100, 1, 1, false, song);
             for (int i = 0; i < deck.size(); i++) {
                 assertThat(deck.get(i).chords().stream().map(PracticeService.Chord::name))
-                    .containsExactlyElementsOf(ALLOWED_PAIRS.get(i % ALLOWED_PAIRS.size()));
+                        .containsExactlyElementsOf(ALLOWED_PAIRS.get(i % ALLOWED_PAIRS.size()));
             }
         }
     }
 
-    @Test void allBluesUsesOnlyItsFourChordsAndValidTargets() {
+    @Test
+    void allBluesUsesOnlyItsFourChordsAndValidTargets() {
         var expectedNotes = Map.of(
-            "G7", List.of("G", "B", "D", "F"),
-            "C7", List.of("C", "E", "G", "B♭"),
-            "Dalt", List.of("D", "F♯", "A♭", "A♯", "C"),
-            "D#alt", List.of("D♯", "F𝄪", "A", "B", "C♯")
-        );
+                "G7", List.of("G", "B", "D", "F"),
+                "C7", List.of("C", "E", "G", "B♭"),
+                "Dalt", List.of("D", "F♯", "A♭", "A♯", "C"),
+                "D#alt", List.of("D♯", "F𝄪", "A", "B", "C♯"));
         for (boolean shuffle : List.of(false, true)) {
             var deck = service.deck(135, 8, 4, shuffle, "all-blues");
             assertThat(deck.stream().map(PracticeService.Card::exercise))
-                .containsExactlyInAnyOrderElementsOf(service.exercises());
+                    .containsExactlyInAnyOrderElementsOf(service.exercises());
             assertThat(deck).allSatisfy(card -> {
                 assertThat(card.chords().stream().map(PracticeService.Chord::name))
-                    .hasSize(2).doesNotHaveDuplicates().isSubsetOf(expectedNotes.keySet());
+                        .hasSize(2).doesNotHaveDuplicates().isSubsetOf(expectedNotes.keySet());
                 for (int i = 0; i < 2; i++) {
                     var chord = card.chords().get(i);
                     assertThat(chord.targetNoteOptions().stream().map(PracticeService.TargetNote::name))
-                        .containsExactlyElementsOf(expectedNotes.get(chord.name()))
-                        .contains(card.targetNotes().get(i));
+                            .containsExactlyElementsOf(expectedNotes.get(chord.name()))
+                            .contains(card.targetNotes().get(i));
                 }
                 assertThat(card.bpm()).isEqualTo(135);
                 assertThat(card.fretStart()).isEqualTo(8);
@@ -172,23 +182,23 @@ class PracticeServiceTest {
         }
         var orderedDeck = service.deck(100, 1, 1, false, "all-blues");
         assertThat(orderedDeck.stream().flatMap(card -> card.chords().stream()).map(PracticeService.Chord::name))
-            .containsAll(expectedNotes.keySet());
+                .containsAll(expectedNotes.keySet());
         assertThatThrownBy(() -> service.deck(100, 1, 1, true, "unknown"))
-            .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("Unknown song");
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("Unknown song");
     }
 
-    @Test void allBluesUsesOnlyItsFiveOrderedPairs() {
+    @Test
+    void allBluesUsesOnlyItsFiveOrderedPairs() {
         var allowedPairs = List.of(
-            List.of("G7", "C7"), List.of("C7", "G7"), List.of("G7", "Dalt"),
-            List.of("Dalt", "D#alt"), List.of("D#alt", "G7")
-        );
+                List.of("G7", "C7"), List.of("C7", "G7"), List.of("G7", "Dalt"),
+                List.of("Dalt", "D#alt"), List.of("D#alt", "G7"));
         var orderedDeck = service.deck(100, 1, 1, false, "all-blues");
         for (int i = 0; i < orderedDeck.size(); i++) {
             assertThat(orderedDeck.get(i).chordPairOptions().stream()
-                .map(option -> option.stream().map(PracticeService.Chord::name).toList()))
-                .containsExactlyElementsOf(allowedPairs);
+                    .map(option -> option.stream().map(PracticeService.Chord::name).toList()))
+                    .containsExactlyElementsOf(allowedPairs);
             assertThat(orderedDeck.get(i).chords().stream().map(PracticeService.Chord::name))
-                .containsExactlyElementsOf(allowedPairs.get(i % allowedPairs.size()));
+                    .containsExactlyElementsOf(allowedPairs.get(i % allowedPairs.size()));
         }
         var sampledPairs = new HashSet<List<String>>();
         for (int i = 0; i < 100; i++) {
@@ -202,44 +212,44 @@ class PracticeServiceTest {
         assertThat(sampledPairs).containsExactlyInAnyOrderElementsOf(allowedPairs);
     }
 
-    @Test void pianoHasItsOwnSingleExerciseAndSevenChords() {
+    @Test
+    void pianoHasItsOwnSingleExerciseAndSevenChords() {
         var catalog = service.exercises("piano");
         assertThat(catalog).hasSize(1);
         assertThat(catalog.getFirst().id()).isEqualTo("block-chords-ascending");
-        assertThat(catalog.getFirst().title()).isEqualTo("Block Chords: Approach");
+        assertThat(catalog.getFirst().title()).isEqualTo("Block Chords: Approach From Below");
         assertThat(catalog.getFirst().chords().stream().map(PracticeService.Chord::name))
-            .containsExactly("G7", "C7", "C#dim", "B7", "E7", "Aalt", "D7");
+                .containsExactly("G7", "C7", "C#dim", "B7", "E7", "Aalt", "D7");
         var expectedNotes = Map.of(
-            "G7", List.of("G", "B", "D", "F"),
-            "C7", List.of("C", "E", "G", "B♭"),
-            "C#dim", List.of("C♯", "E", "G"),
-            "B7", List.of("B", "D♯", "F♯", "A"),
-            "E7", List.of("E", "G♯", "B", "D"),
-            "Aalt", List.of("A", "C♯", "E♭", "E♯", "G"),
-            "D7", List.of("D", "F♯", "A", "C")
-        );
-        assertThat(catalog.getFirst().chords()).allSatisfy(chord ->
-            assertThat(chord.targetNoteOptions().stream().map(PracticeService.TargetNote::name))
-                .containsExactlyElementsOf(expectedNotes.get(chord.name())));
+                "G7", List.of("G", "B", "D", "F"),
+                "C7", List.of("C", "E", "G", "B♭"),
+                "C#dim", List.of("C♯", "E", "G"),
+                "B7", List.of("B", "D♯", "F♯", "A"),
+                "E7", List.of("E", "G♯", "B", "D"),
+                "Aalt", List.of("A", "C♯", "E♭", "E♯", "G"),
+                "D7", List.of("D", "F♯", "A", "C"));
+        assertThat(catalog.getFirst().chords()).allSatisfy(
+                chord -> assertThat(chord.targetNoteOptions().stream().map(PracticeService.TargetNote::name))
+                        .containsExactlyElementsOf(expectedNotes.get(chord.name())));
         assertThat(service.exercises("guitar")).isEqualTo(service.exercises()).hasSize(16);
         assertThatThrownBy(() -> service.exercises("unknown")).isInstanceOf(IllegalArgumentException.class);
     }
 
-    @Test void pianoDeckUsesOnlyTheNineBagsGroovePairsAndNoGuitarRanges() {
+    @Test
+    void pianoDeckUsesOnlyTheNineBagsGroovePairsAndNoGuitarRanges() {
         var allowedPairs = List.of(
-            List.of("G7", "C7"), List.of("C7", "G7"), List.of("C7", "C#dim"),
-            List.of("G7", "B7"), List.of("B7", "E7"), List.of("E7", "Aalt"),
-            List.of("Aalt", "D7"), List.of("D7", "G7"), List.of("G7", "D7")
-        );
+                List.of("G7", "C7"), List.of("C7", "G7"), List.of("C7", "C#dim"),
+                List.of("G7", "B7"), List.of("B7", "E7"), List.of("E7", "Aalt"),
+                List.of("Aalt", "D7"), List.of("D7", "G7"), List.of("G7", "D7"));
         var initial = service.deck(100, null, null, false, null, "piano");
         assertThat(initial).hasSize(1);
         assertThat(initial.getFirst().chordPairOptions().stream()
-            .map(option -> option.stream().map(PracticeService.Chord::name).toList()))
-            .containsExactlyElementsOf(allowedPairs);
-        assertThat(initial.getFirst().chordPairOptions()).allSatisfy(pair ->
-            assertThat(pair).hasSize(2).isSubsetOf(service.exercises("piano").getFirst().chords()));
+                .map(option -> option.stream().map(PracticeService.Chord::name).toList()))
+                .containsExactlyElementsOf(allowedPairs);
+        assertThat(initial.getFirst().chordPairOptions()).allSatisfy(
+                pair -> assertThat(pair).hasSize(2).isSubsetOf(service.exercises("piano").getFirst().chords()));
         assertThat(initial.getFirst().chords().stream().map(PracticeService.Chord::name))
-            .containsExactly("G7", "C7");
+                .containsExactly("G7", "C7");
         assertThat(initial.getFirst().targetNotes()).containsExactly("G", "C");
         var sampledPairs = new HashSet<List<String>>();
         for (int i = 0; i < 300; i++) {
@@ -257,13 +267,13 @@ class PracticeServiceTest {
             assertThat(card.stringEnd()).isNull();
             for (int chordIndex = 0; chordIndex < 2; chordIndex++) {
                 assertThat(card.chords().get(chordIndex).targetNoteOptions().stream()
-                    .map(PracticeService.TargetNote::name)).contains(card.targetNotes().get(chordIndex));
+                        .map(PracticeService.TargetNote::name)).contains(card.targetNotes().get(chordIndex));
             }
         }
         assertThat(sampledPairs).containsExactlyInAnyOrderElementsOf(allowedPairs);
         assertThatThrownBy(() -> service.deck(100, null, null, false, "all-blues", "piano"))
-            .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.deck(100, null, null, false, null, "unknown"))
-            .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }
