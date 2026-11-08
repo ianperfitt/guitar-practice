@@ -34,6 +34,13 @@ class PracticeApiTest {
             assertThat(card.get("stringEnd").asInt()).isEqualTo(card.get("stringStart").asInt() + 2);
             assertThat(card.get("chords").size()).isEqualTo(2);
             assertThat(card.get("targetNotes").size()).isEqualTo(2);
+            assertThat(card.get("chordPairOptions").size()).isEqualTo(8);
+            for (var pair : card.get("chordPairOptions")) {
+                assertThat(pair.size()).isEqualTo(2);
+                for (var chord : pair) {
+                    assertThat(chord.get("targetNoteOptions").size()).isGreaterThanOrEqualTo(3);
+                }
+            }
             for (int i = 0; i < 2; i++) {
                 var options = new ArrayList<String>();
                 card.get("chords").get(i).get("targetNoteOptions").forEach(option -> {
@@ -78,6 +85,7 @@ class PracticeApiTest {
             List.of("Dalt", "D#alt"), List.of("D#alt", "G7")
         );
         for (int i = 0; i < deck.size(); i++) {
+            assertThat(deck.get(i).get("chordPairOptions").size()).isEqualTo(5);
             var chords = deck.get(i).get("chords");
             assertThat(List.of(chords.get(0).get("name").asText(), chords.get(1).get("name").asText()))
                 .containsExactlyElementsOf(allowedPairs.get(i % allowedPairs.size()));
@@ -97,6 +105,7 @@ class PracticeApiTest {
         assertThat(deckResponse.statusCode()).isEqualTo(200);
         var deck = JsonMapper.builder().build().readTree(deckResponse.body());
         assertThat(deck.size()).isEqualTo(1);
+        assertThat(deck.get(0).get("chordPairOptions").size()).isEqualTo(9);
         assertThat(deck.get(0).get("exercise")).isEqualTo(catalog.get(0));
         assertThat(deck.get(0).get("bpm").asInt()).isEqualTo(125);
         assertThat(deck.get(0).get("chords").get(0).get("name").asText()).isEqualTo("G7");

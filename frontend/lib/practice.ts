@@ -54,6 +54,7 @@ export type Card = {
   exercise: Exercise;
   chords: Chord[];
   targetNotes: string[];
+  chordPairOptions: Chord[][];
   bpm: number;
   fretStart: number | null;
   fretEnd: number | null;

@@ -36,7 +36,12 @@ class PracticeServiceTest {
                 assertThat(card.chords()).hasSize(2);
                 var pair = card.chords().stream().map(PracticeService.Chord::name).toList();
                 assertThat(ALLOWED_PAIRS).contains(pair);
+                assertThat(card.chordPairOptions().stream()
+                    .map(option -> option.stream().map(PracticeService.Chord::name).toList()))
+                    .containsExactlyElementsOf(ALLOWED_PAIRS);
+                assertThat(card.chordPairOptions()).contains(card.chords());
                 var pool = card.exercise().chords().isEmpty() ? service.exercises().get(2).chords() : card.exercise().chords();
+                assertThat(card.chordPairOptions()).allSatisfy(option -> assertThat(option).isSubsetOf(pool));
                 assertThat(card.chords()).isSubsetOf(pool);
                 assertThat(card.targetNotes()).hasSize(2);
                 for (int chordIndex = 0; chordIndex < card.chords().size(); chordIndex++) {
@@ -179,6 +184,9 @@ class PracticeServiceTest {
         );
         var orderedDeck = service.deck(100, 1, 1, false, "all-blues");
         for (int i = 0; i < orderedDeck.size(); i++) {
+            assertThat(orderedDeck.get(i).chordPairOptions().stream()
+                .map(option -> option.stream().map(PracticeService.Chord::name).toList()))
+                .containsExactlyElementsOf(allowedPairs);
             assertThat(orderedDeck.get(i).chords().stream().map(PracticeService.Chord::name))
                 .containsExactlyElementsOf(allowedPairs.get(i % allowedPairs.size()));
         }
@@ -225,6 +233,11 @@ class PracticeServiceTest {
         );
         var initial = service.deck(100, null, null, false, null, "piano");
         assertThat(initial).hasSize(1);
+        assertThat(initial.getFirst().chordPairOptions().stream()
+            .map(option -> option.stream().map(PracticeService.Chord::name).toList()))
+            .containsExactlyElementsOf(allowedPairs);
+        assertThat(initial.getFirst().chordPairOptions()).allSatisfy(pair ->
+            assertThat(pair).hasSize(2).isSubsetOf(service.exercises("piano").getFirst().chords()));
         assertThat(initial.getFirst().chords().stream().map(PracticeService.Chord::name))
             .containsExactly("G7", "C7");
         assertThat(initial.getFirst().targetNotes()).containsExactly("G", "C");

@@ -116,7 +116,11 @@ async function requestDeck(
     throw new Error(
       'The practice deck couldn’t load. Check that the Spring Boot server is running, then try again.',
     );
-  return response.json();
+  const deck: Card[] = await response.json();
+  if (deck.some((card) => !Array.isArray(card.chordPairOptions))) {
+    throw new Error('Restart the Spring Boot backend to load chord selection, then try again.');
+  }
+  return deck;
 }
 
 function Fretboard({
@@ -557,6 +561,27 @@ function PracticeWorkspace({
     setActiveChord(chordIndex);
   }
 
+  function changeChordPair(value: string) {
+    const chords = card?.chordPairOptions.find(
+      (pair) => pair.map((chord) => chord.name).join('|') === value,
+    );
+    if (!chords) return;
+    setCards((previous) =>
+      previous.map((item, cardIndex) => {
+        if (cardIndex !== index) return item;
+        const targetNotes = chords.map((chord) => {
+          const previousIndex = item.chords.findIndex((oldChord) => oldChord.name === chord.name);
+          const previousTarget = item.targetNotes[previousIndex];
+          return chord.targetNoteOptions.some((option) => option.name === previousTarget)
+            ? previousTarget
+            : chord.targetNoteOptions[0].name;
+        });
+        return { ...item, chords, targetNotes };
+      }),
+    );
+    setActiveChord(0);
+  }
+
   function changeStringRange(mode: string) {
     setSettings((previous) => ({ ...previous, stringMode: mode }));
     setCards((previous) =>
@@ -955,15 +980,38 @@ function PracticeWorkspace({
                               className={cn(
                                 'mini-heading',
                                 'flex items-center justify-between gap-2',
-                                '[&>span:first-child]:text-[8px] [&>span:first-child]:font-[550] [&>span:first-child]:tracking-[1.2px] [&>span:first-child]:text-[#929780]',
+                                '[&>label]:text-[8px] [&>label]:font-[550] [&>label]:tracking-[1.2px] [&>label]:text-[#929780]',
                                 '[&>span:last-child]:text-[8px] [&>span:last-child]:text-[#a6aa98]',
                                 'compact:[&>span:last-child]:text-[7px]',
                                 'narrow:[&>span:last-child]:hidden',
                               )}
                             >
-                              <span>YOUR TWO CHORDS</span>
+                              <label htmlFor="chord-pair">YOUR TWO CHORDS</label>
                               <span>Focus · {card.chords[activeChord]?.name}</span>
                             </div>
+                            <select
+                              id="chord-pair"
+                              value={card.chords.map((chord) => chord.name).join('|')}
+                              disabled={loading}
+                              onChange={(event) => changeChordPair(event.target.value)}
+                              aria-describedby="chord-pair-description"
+                              className="mt-3 block w-full cursor-pointer rounded-[5px] border border-[#dce1cc] bg-[#f8f9f0] px-3 py-2.5 text-[12px] text-[#53623d]"
+                            >
+                              {card.chordPairOptions.map((pair) => {
+                                const names = pair.map((chord) => chord.name);
+                                return (
+                                  <option key={names.join('|')} value={names.join('|')}>
+                                    {names.join(' → ')}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                            <p
+                              id="chord-pair-description"
+                              className="mt-2 mb-0 text-[9px] text-[#919581]"
+                            >
+                              Choose a change from {song.name} for this card, or shuffle the deck.
+                            </p>
                             <div className="chord-pair mt-3 grid grid-cols-2 gap-3">
                               {card.chords.map((chord, chordIndex) => (
                                 <ChordTarget
@@ -1710,6 +1758,8 @@ function PracticeWorkspace({
             )}
             <li>
               <strong>Follow the card.</strong> Apply the library exercise to the two chords shown.
+              Use Your Two Chords to choose an allowed change for this card. Shuffle Deck still
+              chooses fresh pairs; “Keep chords when shuffling” preserves your guitar selections.
               Click either chord to focus on it and choose a chord tone from its Target note
               selector.{' '}
               {piano ? (

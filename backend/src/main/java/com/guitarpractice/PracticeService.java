@@ -14,7 +14,8 @@ public class PracticeService {
                         List<TargetNote> targetNoteOptions) {}
     public record Exercise(String id, String title, String category, String guidance, List<Chord> chords) {}
     public record Card(Exercise exercise, List<Chord> chords, List<String> targetNotes,
-                       int bpm, Integer fretStart, Integer fretEnd, Integer stringStart, Integer stringEnd) {}
+                       int bpm, Integer fretStart, Integer fretEnd, Integer stringStart, Integer stringEnd,
+                       List<List<Chord>> chordPairOptions) {}
 
     private static final List<List<String>> CHORD_PAIRS = List.of(
         List.of("F7", "B♭7"),
@@ -158,19 +159,20 @@ public class PracticeService {
             var exercise = order.get(index);
             // Scale-only exercises use the same chord pool as the rest of the library.
             var pool = exercise.chords().isEmpty() ? DEFAULT_CHORDS : exercise.chords();
-            var pair = pairs.get(shuffle ? ThreadLocalRandom.current().nextInt(pairs.size())
-                                        : index % pairs.size());
-            var chords = pair.stream().map(name -> pool.stream()
+            var pairOptions = pairs.stream().map(pair -> pair.stream().map(name -> pool.stream()
                 .filter(chord -> chord.name().equals(name)).findFirst()
-                .orElseGet(() -> chord(name, "", "", false))).toList();
+                .orElseGet(() -> chord(name, "", "", false))).toList()).toList();
+            var chords = pairOptions.get(shuffle ? ThreadLocalRandom.current().nextInt(pairOptions.size())
+                                                 : index % pairOptions.size());
             var targets = chords.stream().map(chord -> {
                 var options = chord.targetNoteOptions();
                 return options.get(shuffle ? ThreadLocalRandom.current().nextInt(options.size()) : 0).name();
             }).toList();
-            if (piano) return new Card(exercise, chords, targets, bpm, null, null, null, null);
+            if (piano) return new Card(exercise, chords, targets, bpm, null, null, null, null, pairOptions);
             int start = fretStart == null ? ThreadLocalRandom.current().nextInt(1, 9) : fretStart;
             int firstString = stringStart == null ? ThreadLocalRandom.current().nextInt(1, 5) : stringStart;
-            return new Card(exercise, chords, targets, bpm, start, start + 4, firstString, firstString + 2);
+            return new Card(exercise, chords, targets, bpm, start, start + 4, firstString, firstString + 2,
+                            pairOptions);
         }).toList();
     }
 }

@@ -44,6 +44,8 @@ Choose **Guitar** or **Piano** from the Instrument selector in the sidebar. Each
 
 Switching instruments resumes that instrument's current deck, including shuffled cards, selected card, target notes, and library search. Shuffling or editing one instrument's deck leaves the other deck untouched. Reloading the page starts a fresh deck using that instrument's saved settings.
 
+Use the **Your Two Chords** dropdown on either instrument's practice card to select an allowed ordered change from the current song. Selection updates only that card, keeping its exercise, tempo, ranges, and valid target notes for any retained chords; newly introduced chords start on their roots. Navigation and instrument switching keep your selection. **Shuffle Deck** continues to sample fresh pairs; guitar's **Keep chords when shuffling** also preserves manually selected pairs.
+
 Piano contains exactly one exercise card: **Block Chords: Approach**. Its only song is **Bag's Groove**, using **G7, C7, C#dim, B7, E7, Aalt, D7**. Each card shows two chords; Shuffle Deck samples only these nine ordered changes:
 
 - G7 → C7
@@ -104,6 +106,8 @@ curl -X POST http://localhost:8080/api/decks \
 ```
 
 An empty `{}` defaults to 100 BPM, random positions, and shuffling. `fretStart` is null for random positions or an integer from 1–8; the end fret is always `fretStart + 4`. `shuffle: false` returns the original exercise order and cycles through the eight ordered pairs above. Each card has an `exercise` containing the original library data and a separate `chords` array containing exactly two selected chords. Each chord includes `targetNoteOptions` with note names and degrees. The card’s `targetNotes` contains one selected note name per chord in the same order. Unshuffled cards start on roots; shuffling samples both targets independently alongside the chord pair. Invalid input returns HTTP 400. Decks are generated per request and never shared between users.
+
+Each card also returns `chordPairOptions`: all allowed ordered pairs for its instrument and song, with the exercise's chord annotations and target-note options. The Your Two Chords selector uses these options without generating a new deck.
 
 Use `/api/exercises?instrument=piano` for the piano library and include `"instrument":"piano"` in deck requests for the single piano card. Piano defaults to `songId: "bags-groove"` and rejects other song IDs. Its fret and string range fields are null. Omitting `instrument` or passing `"guitar"` preserves the original API behavior; unknown instruments return HTTP 400.
 
